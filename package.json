@@ -1,0 +1,38 @@
+{
+  "name": "government-property-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "import-data": "tsx lib/scripts/import-data.ts"
+  },
+  "dependencies": {
+    "@chakra-ui/icons": "^2.1.1",
+    "@chakra-ui/react": "^2.8.2",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@googlemaps/js-api-loader": "^1.16.2",
+    "firebase": "^10.7.1",
+    "framer-motion": "^10.16.16",
+    "next": "14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^4.12.0",
+    "recharts": "^2.9.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/google.maps": "^3.54.10",
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "14.0.4",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+} 
