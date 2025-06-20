@@ -98,8 +98,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
       zIndex={1000}
     >
       <Flex h="20" alignItems="center" mx="8" justifyContent="space-between">
-        <Text fontSize="2xl" fontFamily="monospace" fontWeight="bold">
-          PropertyView
+        <Text fontSize="xl" fontFamily="monospace" fontWeight="bold">
+          PropertyViewer
         </Text>
       </Flex>
       <VStack align="stretch" spacing={0}>

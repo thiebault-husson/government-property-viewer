@@ -41,7 +41,7 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
         fontFamily="monospace"
         fontWeight="bold"
       >
-        PropertyView
+        PropertyViewer
       </Text>
 
       <HStack spacing={{ base: '0', md: '6' }}>
