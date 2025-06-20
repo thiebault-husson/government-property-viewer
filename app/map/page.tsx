@@ -33,26 +33,6 @@ export default function MapPage() {
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
 
-  useEffect(() => {
-    loadProperties();
-  }, []);
-
-  useEffect(() => {
-    let filtered = properties;
-    if (filter === 'owned') {
-      filtered = properties.filter(p => p.ownedOrLeased === 'F');
-    } else if (filter === 'leased') {
-      filtered = properties.filter(p => p.ownedOrLeased === 'L');
-    }
-    setFilteredProperties(filtered);
-  }, [properties, filter]);
-
-  useEffect(() => {
-    if (mapInstanceRef.current && filteredProperties.length > 0) {
-      updateMapMarkers();
-    }
-  }, [filteredProperties]);
-
   const loadProperties = async () => {
     try {
       setLoading(true);
@@ -95,7 +75,7 @@ export default function MapPage() {
     }
   }, []);
 
-  const updateMapMarkers = () => {
+  const updateMapMarkers = useCallback(() => {
     if (!mapInstanceRef.current) return;
 
     // Clear existing markers
@@ -125,7 +105,27 @@ export default function MapPage() {
     if (newMarkers.length > 0 && mapInstanceRef.current) {
       fitMapToMarkers(mapInstanceRef.current, filteredProperties);
     }
-  };
+  }, [filteredProperties]);
+
+  useEffect(() => {
+    loadProperties();
+  }, []);
+
+  useEffect(() => {
+    let filtered = properties;
+    if (filter === 'owned') {
+      filtered = properties.filter(p => p.ownedOrLeased === 'F');
+    } else if (filter === 'leased') {
+      filtered = properties.filter(p => p.ownedOrLeased === 'L');
+    }
+    setFilteredProperties(filtered);
+  }, [properties, filter]);
+
+  useEffect(() => {
+    if (mapInstanceRef.current && filteredProperties.length > 0) {
+      updateMapMarkers();
+    }
+  }, [filteredProperties]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     initializeMap();

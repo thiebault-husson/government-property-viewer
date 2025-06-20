@@ -89,7 +89,7 @@ export default function FederalOwnedDashboard() {
         <Box>
           <Heading size="lg" mb={2}>Federal Owned Properties Dashboard</Heading>
           <Text color="gray.600" fontSize="md">
-            Showing only federally-owned buildings (ownedOrLeased = 'F') from the government property portfolio
+            Showing only federally-owned buildings (ownedOrLeased = &apos;F&apos;) from the government property portfolio
           </Text>
           <Badge colorScheme="blue" mt={2}>Federal Properties Only</Badge>
         </Box>
