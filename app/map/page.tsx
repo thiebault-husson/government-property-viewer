@@ -39,8 +39,12 @@ export default function MapPage() {
   const [currentDisplayedProperties, setCurrentDisplayedProperties] = useState<TMapMarker[]>([]);
   const [ownedMarkersVisible, setOwnedMarkersVisible] = useState(true);
   const [leasedMarkersVisible, setLeasedMarkersVisible] = useState(true);
+  // New state for property info card
+  const [selectedProperty, setSelectedProperty] = useState<TMapMarker | null>(null);
+  const [infoWindowOpen, setInfoWindowOpen] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
 
   const addDebugInfo = (message: string) => {
     console.log(message);
@@ -229,6 +233,13 @@ export default function MapPage() {
             marker.setIcon('http://maps.google.com/mapfiles/ms/icons/blue-dot.png');
           }
           
+          // Add click event listener for property info card
+          marker.addListener('click', () => {
+            setSelectedProperty(property);
+            setInfoWindowOpen(true);
+            addDebugInfo(`🔍 Property selected: ${property.name}`);
+          });
+          
           // Now set proper visibility based on current toggle states
           const shouldBeVisible = isOwned ? ownedMarkersVisible : leasedMarkersVisible;
           if (shouldBeVisible) {
@@ -327,10 +338,40 @@ export default function MapPage() {
         center: { lat: 39.8283, lng: -98.5795 }, // Center of USA
         zoom: 4,
         mapTypeId: google.maps.MapTypeId.ROADMAP,
+        // Enhanced map controls
         mapTypeControl: true,
+        mapTypeControlOptions: {
+          style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+          position: google.maps.ControlPosition.TOP_CENTER,
+          mapTypeIds: [
+            google.maps.MapTypeId.ROADMAP,
+            google.maps.MapTypeId.SATELLITE,
+            google.maps.MapTypeId.HYBRID,
+            google.maps.MapTypeId.TERRAIN
+          ]
+        },
         zoomControl: true,
+        zoomControlOptions: {
+          position: google.maps.ControlPosition.RIGHT_CENTER
+        },
         streetViewControl: true,
+        streetViewControlOptions: {
+          position: google.maps.ControlPosition.RIGHT_TOP
+        },
         fullscreenControl: true,
+        fullscreenControlOptions: {
+          position: google.maps.ControlPosition.TOP_RIGHT
+        },
+        scaleControl: true,
+        rotateControl: true,
+        // Improved styling
+        styles: [
+          {
+            featureType: "poi",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }]
+          }
+        ]
       });
 
       mapInstanceRef.current = map;
@@ -463,6 +504,27 @@ export default function MapPage() {
       
       addDebugInfo(`🔵 Leased markers ${newVisibility ? 'shown' : 'hidden'} - Toggled: ${toggledCount}, Errors: ${errorCount}`);
     }
+  };
+
+  // Function to open Google Street View
+  const openStreetView = (property: TMapMarker) => {
+    if (!property.lat || !property.lng) {
+      addDebugInfo('❌ Cannot open Street View - invalid coordinates');
+      return;
+    }
+    
+    // Create Google Street View URL
+    const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${property.lat},${property.lng}`;
+    
+    addDebugInfo(`🌍 Opening Street View for: ${property.name}`);
+    window.open(streetViewUrl, '_blank');
+  };
+
+  // Function to close property info card
+  const closePropertyCard = () => {
+    setSelectedProperty(null);
+    setInfoWindowOpen(false);
+    addDebugInfo('🔍 Property card closed');
   };
 
   useEffect(() => {
@@ -654,6 +716,107 @@ export default function MapPage() {
                 />
               </Box>
             </Center>
+          )}
+          
+          {/* Property Info Card */}
+          {selectedProperty && infoWindowOpen && (
+            <Box
+              position="absolute"
+              top="20px"
+              right="20px"
+              zIndex={25}
+              bg="white"
+              borderRadius="xl"
+              shadow="2xl"
+              border="1px"
+              borderColor="gray.200"
+              p={6}
+              w="350px"
+              maxW="90vw"
+            >
+              <VStack align="stretch" spacing={4}>
+                {/* Header */}
+                <HStack justify="space-between" align="flex-start">
+                  <VStack align="stretch" spacing={1} flex={1}>
+                    <Text fontSize="lg" fontWeight="bold" lineHeight="short">
+                      {selectedProperty.name}
+                    </Text>
+                    <HStack spacing={2}>
+                      <Box 
+                        w={3} 
+                        h={3} 
+                        bg={selectedProperty.ownedOrLeased === 'F' ? 'green.500' : 'blue.500'} 
+                        borderRadius="full" 
+                      />
+                      <Text fontSize="sm" color="gray.600" fontWeight="medium">
+                        {selectedProperty.ownedOrLeased === 'F' ? 'Government Owned' : 'Leased Property'}
+                      </Text>
+                    </HStack>
+                  </VStack>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={closePropertyCard}
+                    aria-label="Close property card"
+                  >
+                    ✕
+                  </Button>
+                </HStack>
+                
+                {/* Property Details */}
+                <VStack align="stretch" spacing={3}>
+                  <Box>
+                    <Text fontSize="sm" fontWeight="medium" color="gray.700" mb={1}>
+                      📍 Address
+                    </Text>
+                    <Text fontSize="sm" color="gray.600">
+                      {selectedProperty.address}
+                    </Text>
+                  </Box>
+                  
+                  <HStack spacing={4}>
+                    <Box flex={1}>
+                      <Text fontSize="sm" fontWeight="medium" color="gray.700" mb={1}>
+                        📐 Square Footage
+                      </Text>
+                      <Text fontSize="sm" color="gray.600">
+                        {selectedProperty.squareFootage?.toLocaleString() || 'N/A'} sq ft
+                      </Text>
+                    </Box>
+                    
+                    <Box flex={1}>
+                      <Text fontSize="sm" fontWeight="medium" color="gray.700" mb={1}>
+                        🏢 Asset Type
+                      </Text>
+                      <Text fontSize="sm" color="gray.600">
+                        {selectedProperty.assetType || 'N/A'}
+                      </Text>
+                    </Box>
+                  </HStack>
+                </VStack>
+                
+                {/* Actions */}
+                <HStack spacing={3}>
+                  <Button
+                    flex={1}
+                    colorScheme="blue"
+                    size="sm"
+                    leftIcon={<Text>🌍</Text>}
+                    onClick={() => openStreetView(selectedProperty)}
+                  >
+                    Street View
+                  </Button>
+                  <Button
+                    flex={1}
+                    variant="outline"
+                    size="sm"
+                    onClick={closePropertyCard}
+                  >
+                    Close
+                  </Button>
+                </HStack>
+              </VStack>
+            </Box>
           )}
           
           <Box
