@@ -98,7 +98,7 @@ function cleanFieldName(name: string): string {
     .toLowerCase();
 }
 
-// Transform owned properties data with better field names
+// Transform owned properties data to TBuilding objects for the buildings collection
 function transformOwnedProperty(row: any) {
   return {
     locationCode: String(row['Location_Code'] || row['Location Code'] || ''),

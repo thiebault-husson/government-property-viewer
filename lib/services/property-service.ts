@@ -1,10 +1,10 @@
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { TOwnedProperty, TLeasedProperty, TPropertyForTable, TMapMarker } from '@/types/property';
+import { TBuilding, TLeasedProperty, TPropertyForTable, TMapMarker } from '@/types/property';
 
 // Collection names
 const COLLECTIONS = {
-  OWNED_PROPERTIES: 'buildings',
+  BUILDINGS: 'buildings',
   LEASED_PROPERTIES: 'leasedProperties',
 };
 
@@ -19,10 +19,13 @@ async function getCollection<T>(collectionName: string): Promise<T[]> {
   }
 }
 
-// Get all owned properties
-export async function getAllOwnedProperties(): Promise<TOwnedProperty[]> {
-  return getCollection<TOwnedProperty>(COLLECTIONS.OWNED_PROPERTIES);
+// Get all buildings (owned properties)
+export async function getAllBuildings(): Promise<TBuilding[]> {
+  return getCollection<TBuilding>(COLLECTIONS.BUILDINGS);
 }
+
+// Legacy function name for backward compatibility
+export const getAllOwnedProperties = getAllBuildings;
 
 // Get all leased properties
 export async function getAllLeasedProperties(): Promise<TLeasedProperty[]> {
@@ -105,15 +108,15 @@ export async function getAllPropertiesForMap(): Promise<TMapMarker[]> {
 }
 
 // Get owned properties for dashboard
-export async function getOwnedPropertiesForDashboard(): Promise<TOwnedProperty[]> {
+export async function getOwnedPropertiesForDashboard(): Promise<TBuilding[]> {
   try {
     const q = query(
-      collection(db, COLLECTIONS.OWNED_PROPERTIES),
+      collection(db, COLLECTIONS.BUILDINGS),
       where('ownedOrLeased', '==', 'F'),
       orderBy('constructionDate', 'asc')
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TOwnedProperty));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TBuilding));
   } catch (error) {
     console.error('Error fetching owned properties for dashboard:', error);
     return [];

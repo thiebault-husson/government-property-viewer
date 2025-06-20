@@ -1,4 +1,4 @@
-import { TOwnedProperty, TLeasedProperty, TChartData, TDashboardStats } from '@/types/property';
+import { TBuilding, TLeasedProperty, TChartData, TDashboardStats } from '@/types/property';
 
 // Format number with commas
 export function formatNumber(num: number): string {
@@ -27,8 +27,8 @@ export function formatDate(dateString: string): string {
   });
 }
 
-// Group owned properties by construction decade for charts
-export function groupBuildingsByDecade(buildings: TOwnedProperty[]): TChartData[] {
+// Group buildings by construction decade for charts
+export function groupBuildingsByDecade(buildings: TBuilding[]): TChartData[] {
   const decades: { [key: string]: number } = {};
   
   buildings.forEach(building => {
@@ -49,7 +49,7 @@ export function groupBuildingsByDecade(buildings: TOwnedProperty[]): TChartData[
 
 // Group properties by state
 export function groupPropertiesByState(
-  ownedProperties: TOwnedProperty[],
+  ownedProperties: TBuilding[],
   leasedProperties: TLeasedProperty[]
 ): TChartData[] {
   const states: { [key: string]: { owned: number; leased: number } } = {};
@@ -80,9 +80,9 @@ export function groupPropertiesByState(
     .slice(0, 10); // Top 10 states
 }
 
-// Calculate statistics for owned properties dashboard
-export function calculateOwnedPropertyStats(properties: TOwnedProperty[]): TDashboardStats {
-  if (properties.length === 0) {
+// Calculate statistics for buildings dashboard
+export function calculateOwnedPropertyStats(buildings: TBuilding[]): TDashboardStats {
+  if (buildings.length === 0) {
     return {
       totalProperties: 0,
       totalSquareFootage: 0,
@@ -92,22 +92,22 @@ export function calculateOwnedPropertyStats(properties: TOwnedProperty[]): TDash
     };
   }
 
-  const totalProperties = properties.length;
-  const totalSquareFootage = properties.reduce((sum, prop) => {
-    return sum + (prop.buildingRentableSquareFeet || 0);
+  const totalProperties = buildings.length;
+  const totalSquareFootage = buildings.reduce((sum, building) => {
+    return sum + (building.buildingRentableSquareFeet || 0);
   }, 0);
   const averageSquareFootage = totalProperties > 0 ? totalSquareFootage / totalProperties : 0;
   
   // Find oldest and newest buildings
-  const propertiesWithDates = properties.filter(
-    prop => prop.constructionDate && typeof prop.constructionDate === 'number'
+  const buildingsWithDates = buildings.filter(
+    building => building.constructionDate && typeof building.constructionDate === 'number'
   );
   
   let oldestBuilding = 'N/A';
   let newestBuilding = 'N/A';
   
-  if (propertiesWithDates.length > 0) {
-    const sorted = propertiesWithDates.sort((a, b) => 
+  if (buildingsWithDates.length > 0) {
+    const sorted = buildingsWithDates.sort((a, b) => 
       (a.constructionDate as number) - (b.constructionDate as number)
     );
     
@@ -124,15 +124,15 @@ export function calculateOwnedPropertyStats(properties: TOwnedProperty[]): TDash
   };
 }
 
-// Calculate rentable vs available square footage
-export function calculateSquareFootageData(properties: TOwnedProperty[]): TChartData[] {
+// Calculate square footage breakdown for pie chart
+export function calculateSquareFootageData(buildings: TBuilding[]): TChartData[] {
   const data: TChartData[] = [];
   let utilized = 0;
   let available = 0;
   
-  properties.forEach(property => {
-    const totalSpace = property.buildingRentableSquareFeet || 0;
-    const availableSpace = property.availableSquareFeet || 0;
+  buildings.forEach(building => {
+    const totalSpace = building.buildingRentableSquareFeet || 0;
+    const availableSpace = building.availableSquareFeet || 0;
     const utilizedSpace = totalSpace - availableSpace;
     
     utilized += utilizedSpace > 0 ? utilizedSpace : totalSpace;
@@ -171,14 +171,14 @@ export function getStreetViewUrl(address: string): string {
   return `${baseUrl}${encodeURIComponent(address)}`;
 }
 
-// Calculate space utilization for owned properties
+// Calculate space utilization for buildings
 export function calculateSpaceUtilization(
-  buildings: TOwnedProperty[],
+  buildings: TBuilding[],
   leasedProperties: TLeasedProperty[]
 ): TChartData[] {
   const data: TChartData[] = [];
   
-  // Calculate for owned properties
+  // Calculate for buildings
   buildings.forEach(building => {
     const totalSpace = building.buildingRentableSquareFeet;
     const availableSpace = building.availableSquareFeet;

@@ -41,43 +41,43 @@ import {
   formatNumber,
   formatSquareFootage,
 } from '@/lib/utils/data-helpers';
-import { TOwnedProperty } from '@/types/property';
+import { TBuilding } from '@/types/property';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-export default function OwnedDashboardPage() {
-  const [properties, setProperties] = useState<TOwnedProperty[]>([]);
+export default function OwnedDashboard() {
+  const [buildings, setBuildings] = useState<TBuilding[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadProperties();
-  }, []);
-
-  const loadProperties = async () => {
-    try {
-      setLoading(true);
-      const data = await getOwnedPropertiesForDashboard();
-      setProperties(data);
-    } catch (error) {
-      console.error('Error loading owned properties:', error);
-    } finally {
-      setLoading(false);
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const data = await getOwnedPropertiesForDashboard();
+        setBuildings(data);
+      } catch (error) {
+        console.error('Error fetching buildings data:', error);
+      } finally {
+        setLoading(false);
+      }
     }
-  };
+
+    fetchData();
+  }, []);
 
   if (loading) {
     return (
-      <MainLayout title="Owned Properties Dashboard">
-        <Center h="400px">
+      <MainLayout>
+        <Center>
           <Spinner size="xl" />
         </Center>
       </MainLayout>
     );
   }
 
-  const stats = calculateOwnedPropertyStats(properties);
-  const decadeData = groupBuildingsByDecade(properties);
-  const squareFootageData = calculateSquareFootageData(properties);
+  const stats = calculateOwnedPropertyStats(buildings);
+  const decadeData = groupBuildingsByDecade(buildings);
+  const squareFootageData = calculateSquareFootageData(buildings);
 
   return (
     <MainLayout title="Owned Properties Dashboard">
