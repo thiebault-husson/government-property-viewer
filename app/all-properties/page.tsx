@@ -30,6 +30,7 @@ import {
 } from '@chakra-ui/react';
 import { DownloadIcon, SearchIcon } from '@chakra-ui/icons';
 import MainLayout from '@/app/components/layout/main-layout';
+import LoadingProgress from '@/app/components/ui/loading-progress';
 import { getAllPropertiesForTable } from '@/lib/services/property-service';
 import { filterPropertiesBySearch, formatNumber } from '@/lib/utils/data-helpers';
 import { testFirebaseConnection } from '@/lib/test-firebase';
@@ -212,39 +213,12 @@ export default function AllPropertiesPage() {
   if (loading) {
     return (
       <MainLayout title="All Properties">
-        <Center h="500px">
-          <VStack spacing={6} maxW="500px" w="full">
-            <Box textAlign="center">
-              <Text fontSize="2xl" fontWeight="bold" mb={2}>
-                Loading Government Properties
-              </Text>
-              <Text color="gray.600" mb={6}>
-                {loadingMessage}
-              </Text>
-            </Box>
-            
-            <Box w="full">
-              <Progress 
-                value={loadingProgress} 
-                size="lg" 
-                colorScheme="blue" 
-                hasStripe
-                isAnimated
-                borderRadius="md"
-              />
-              <Flex justifyContent="space-between" mt={2}>
-                <Text fontSize="sm" color="gray.500">
-                  {loadingProgress}% Complete
-                </Text>
-                <Text fontSize="sm" color="gray.500">
-                  {loadingProgress === 100 ? 'Ready!' : 'Please wait...'}
-                </Text>
-              </Flex>
-            </Box>
-            
-            <Spinner size="lg" color="blue.500" />
-          </VStack>
-        </Center>
+        <LoadingProgress
+          progress={loadingProgress}
+          message={loadingMessage}
+          title="Loading Government Properties"
+          subtitle="Fetching property data from database..."
+        />
       </MainLayout>
     );
   }

@@ -1,182 +1,267 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
-  Button,
-  ButtonGroup,
-  Card,
-  CardBody,
   Text,
-  Badge,
-  Link,
-  VStack,
-  HStack,
   Spinner,
   Center,
+  VStack,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Code,
+  Button,
 } from '@chakra-ui/react';
-import { ExternalLinkIcon } from '@chakra-ui/icons';
 import MainLayout from '@/app/components/layout/main-layout';
-import { getAllPropertiesForMap } from '@/lib/services/property-service';
-import { formatSquareFootage, getStreetViewUrl } from '@/lib/utils/data-helpers';
-import { loadGoogleMaps, createMarkerIcon, fitMapToMarkers } from '@/lib/utils/google-maps';
 import { TMapMarker } from '@/types/property';
 
 export default function MapPage() {
-  const [properties, setProperties] = useState<TMapMarker[]>([]);
-  const [filteredProperties, setFilteredProperties] = useState<TMapMarker[]>([]);
-  const [filter, setFilter] = useState<'all' | 'owned' | 'leased'>('all');
-  const [selectedProperty, setSelectedProperty] = useState<TMapMarker | null>(null);
-  const [loading, setLoading] = useState(true);
   const [mapLoading, setMapLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [properties, setProperties] = useState<TMapMarker[]>([]);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+
+  const addDebugInfo = (message: string) => {
+    console.log(message);
+    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+  };
 
   const loadProperties = async () => {
     try {
-      setLoading(true);
+      setDataLoading(true);
+      addDebugInfo('📊 Loading property data...');
+      
+      // Dynamic import to avoid server-side execution
+      const { getAllPropertiesForMap } = await import('@/lib/services/property-service');
       const data = await getAllPropertiesForMap();
+      addDebugInfo(`✅ Loaded ${data.length} properties`);
+      
       setProperties(data);
-      setFilteredProperties(data);
+      setDataLoading(false);
+      
+      // Add markers to map if map is ready
+      if (mapInstanceRef.current && data.length > 0) {
+        addMarkers(data);
+      }
     } catch (error) {
-      console.error('Error loading properties:', error);
-    } finally {
-      setLoading(false);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load properties';
+      addDebugInfo(`❌ Data Error: ${errorMessage}`);
+      setError(errorMessage);
+      setDataLoading(false);
     }
   };
 
-  const initializeMap = useCallback(async () => {
+  const addMarkers = (propertyData: TMapMarker[]) => {
+    if (!mapInstanceRef.current) return;
+    
+    addDebugInfo(`📍 Adding ${propertyData.length} markers to map...`);
+    
+    let ownedCount = 0;
+    let leasedCount = 0;
+    
+    // Add color-coded markers for each property
+    propertyData.forEach((property, index) => {
+      // Only add first 50 markers for testing
+      if (index >= 50) return;
+      
+      const isOwned = property.ownedOrLeased === 'F';
+      if (isOwned) ownedCount++;
+      else leasedCount++;
+      
+      // Debug: Log first few properties to see their ownership status
+      if (index < 5) {
+        addDebugInfo(`Property ${index + 1}: ${property.name} - ownedOrLeased: "${property.ownedOrLeased}" - isOwned: ${isOwned}`);
+      }
+      
+      const marker = new google.maps.Marker({
+        position: { lat: property.lat, lng: property.lng },
+        map: mapInstanceRef.current,
+        title: `${property.name} (${isOwned ? 'Owned' : 'Leased'})`,
+      });
+      
+      // Set marker color based on ownership
+      if (isOwned) {
+        // Green marker for owned properties
+        marker.setIcon('http://maps.google.com/mapfiles/ms/icons/green-dot.png');
+      } else {
+        // Blue marker for leased properties  
+        marker.setIcon('http://maps.google.com/mapfiles/ms/icons/blue-dot.png');
+      }
+    });
+    
+    addDebugInfo(`✅ Added ${Math.min(propertyData.length, 50)} markers: ${ownedCount} owned (green), ${leasedCount} leased (blue)`);
+  };
+
+  const initializeMap = async () => {
     if (!mapRef.current) return;
 
     try {
       setMapLoading(true);
-      await loadGoogleMaps();
+      setError(null);
+      addDebugInfo('🗺️ Starting Google Maps initialization...');
+      
+      // Check if API key is available
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        throw new Error('Google Maps API key not found in environment variables');
+      }
+      addDebugInfo(`✅ API key found: ${apiKey.substring(0, 10)}...`);
 
+      // Load Google Maps script manually for better error handling
+      addDebugInfo('📡 Loading Google Maps JavaScript API...');
+      
+      if (!window.google) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
+          script.async = true;
+          script.defer = true;
+          
+          script.onload = () => {
+            addDebugInfo('✅ Google Maps script loaded successfully');
+            resolve(true);
+          };
+          
+          script.onerror = (error) => {
+            addDebugInfo('❌ Failed to load Google Maps script');
+            reject(new Error('Failed to load Google Maps JavaScript API'));
+          };
+          
+          // Handle Google Maps API errors
+          (window as any).gm_authFailure = () => {
+            reject(new Error('Google Maps API authentication failed. Check your API key and billing.'));
+          };
+          
+          document.head.appendChild(script);
+        });
+      } else {
+        addDebugInfo('✅ Google Maps API already loaded');
+      }
+
+      addDebugInfo('🗺️ Creating map instance...');
+      
+      // Create the map
       const map = new google.maps.Map(mapRef.current, {
         center: { lat: 39.8283, lng: -98.5795 }, // Center of USA
         zoom: 4,
-        mapTypeId: google.maps.MapTypeId.HYBRID, // Show satellite imagery with labels
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
         mapTypeControl: true,
-        mapTypeControlOptions: {
-          style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
-          position: google.maps.ControlPosition.TOP_CENTER,
-        },
         zoomControl: true,
         streetViewControl: true,
         fullscreenControl: true,
       });
 
       mapInstanceRef.current = map;
+      addDebugInfo('✅ Google Map created successfully');
       setMapLoading(false);
+      
+      // Load property data
+      loadProperties();
+      
     } catch (error) {
-      console.error('Error initializing map:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      addDebugInfo(`❌ Error: ${errorMessage}`);
+      setError(errorMessage);
       setMapLoading(false);
     }
-  }, []);
+  };
 
-  const updateMapMarkers = useCallback(() => {
-    if (!mapInstanceRef.current) return;
-
-    // Clear existing markers
-    markersRef.current.forEach(marker => marker.setMap(null));
-    markersRef.current = [];
-
-    // Create new markers
-    const newMarkers = filteredProperties.map(property => {
-      const marker = new google.maps.Marker({
-        position: { lat: property.lat, lng: property.lng },
-        map: mapInstanceRef.current,
-        title: property.name,
-        icon: createMarkerIcon(property.ownedOrLeased === 'F' ? 'owned' : 'leased'),
-      });
-
-      // Add click listener
-      marker.addListener('click', () => {
-        setSelectedProperty(property);
-      });
-
-      return marker;
-    });
-
-    markersRef.current = newMarkers;
-
-    // Fit map to show all markers
-    if (newMarkers.length > 0 && mapInstanceRef.current) {
-      fitMapToMarkers(mapInstanceRef.current, filteredProperties);
-    }
-  }, [filteredProperties]);
-
-  useEffect(() => {
-    loadProperties();
-  }, []);
-
-  useEffect(() => {
-    let filtered = properties;
-    if (filter === 'owned') {
-      filtered = properties.filter(p => p.ownedOrLeased === 'F');
-    } else if (filter === 'leased') {
-      filtered = properties.filter(p => p.ownedOrLeased === 'L');
-    }
-    setFilteredProperties(filtered);
-  }, [properties, filter]);
-
-  useEffect(() => {
-    if (mapInstanceRef.current && filteredProperties.length > 0) {
-      updateMapMarkers();
-    }
-  }, [filteredProperties]); // eslint-disable-line react-hooks/exhaustive-deps
+  const retryInitialization = () => {
+    setDebugInfo([]);
+    setProperties([]);
+    initializeMap();
+  };
 
   useEffect(() => {
     initializeMap();
-  }, [initializeMap]);
+  }, []);
 
-  if (loading) {
+  if (error) {
     return (
       <MainLayout title="Map View">
-        <Center h="400px">
-          <Spinner size="xl" />
-        </Center>
+        <VStack spacing={4} align="stretch">
+          <Alert status="error">
+            <AlertIcon />
+            <Box>
+              <AlertTitle>Map Loading Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Box>
+          </Alert>
+          
+          <Box p={4} bg="gray.50" borderRadius="lg">
+            <Text fontWeight="bold" mb={2}>🔧 Debug Information:</Text>
+            <VStack align="stretch" spacing={1}>
+              {debugInfo.map((info, index) => (
+                <Code key={index} fontSize="xs" p={1}>
+                  {info}
+                </Code>
+              ))}
+            </VStack>
+          </Box>
+          
+          <Button onClick={retryInitialization} colorScheme="blue">
+            Retry Loading Map
+          </Button>
+          
+          <Box p={4} bg="blue.50" borderRadius="lg">
+            <Text fontWeight="bold" mb={2}>💡 Troubleshooting Steps:</Text>
+            <VStack align="stretch" spacing={1} fontSize="sm">
+              <Text>1. Check if Maps JavaScript API is enabled in Google Cloud Console</Text>
+              <Text>2. Verify API key has no domain restrictions blocking localhost</Text>
+              <Text>3. Ensure billing is enabled for your Google Cloud project</Text>
+              <Text>4. Check browser console for additional error details</Text>
+            </VStack>
+          </Box>
+        </VStack>
       </MainLayout>
     );
   }
 
   return (
     <MainLayout title="Map View">
-      <Box>
-        <HStack justifyContent="space-between" alignItems="center" mb={6}>
-          <ButtonGroup size="sm" isAttached variant="outline">
-            <Button
-              onClick={() => setFilter('all')}
-              colorScheme={filter === 'all' ? 'blue' : 'gray'}
-            >
-              All ({properties.length})
-            </Button>
-            <Button
-              onClick={() => setFilter('owned')}
-              colorScheme={filter === 'owned' ? 'green' : 'gray'}
-            >
-              Owned ({properties.filter(p => p.ownedOrLeased === 'F').length})
-            </Button>
-            <Button
-              onClick={() => setFilter('leased')}
-              colorScheme={filter === 'leased' ? 'blue' : 'gray'}
-            >
-              Leased ({properties.filter(p => p.ownedOrLeased === 'L').length})
-            </Button>
-          </ButtonGroup>
-
-          <Text fontSize="sm" color="gray.600">
-            Showing {filteredProperties.length} properties
+      <Box pr={6}>
+        <Box mb={6}>
+          <Text fontSize="2xl" fontWeight="bold" mb={2}>
+            Government Property Map
           </Text>
-        </HStack>
+          <Text fontSize="sm" color="gray.600">
+            Step 2: Color-coded pins • {properties.length} properties loaded • Green = Owned, Blue = Leased
+          </Text>
+        </Box>
 
-        <Box position="relative" h="600px" borderRadius="md" overflow="hidden">
-          {mapLoading && (
-            <Center position="absolute" top="0" left="0" right="0" bottom="0" zIndex={10} bg="gray.100">
-              <VStack>
-                <Spinner size="lg" />
-                <Text>Loading Google Maps...</Text>
+        {/* Map Container */}
+        <Box 
+          position="relative" 
+          h="600px" 
+          borderRadius="xl" 
+          overflow="hidden" 
+          shadow="lg" 
+          border="1px" 
+          borderColor="gray.200"
+        >
+          {(mapLoading || dataLoading) && (
+            <Center 
+              position="absolute" 
+              top="0" 
+              left="0" 
+              right="0" 
+              bottom="0" 
+              zIndex={10} 
+              bg="rgba(255,255,255,0.9)"
+            >
+              <VStack spacing={4}>
+                <Spinner size="lg" color="blue.500" />
+                <Text fontWeight="medium">
+                  {mapLoading ? 'Loading Google Maps...' : 'Loading Properties...'}
+                </Text>
+                <Text fontSize="sm" color="gray.600">
+                  {mapLoading ? 'Initializing map interface' : `Fetching property data from Firestore`}
+                </Text>
               </VStack>
             </Center>
           )}
@@ -185,75 +270,23 @@ export default function MapPage() {
             ref={mapRef}
             h="100%"
             w="100%"
+            bg="gray.100"
           />
-          
-          {selectedProperty && (
-            <Card
-              position="absolute"
-              top="4"
-              right="4"
-              maxW="320px"
-              zIndex={1000}
-              shadow="lg"
-            >
-              <CardBody>
-                <VStack align="stretch" spacing={3}>
-                  <Text fontWeight="bold" fontSize="md" noOfLines={2}>
-                    {selectedProperty.name}
-                  </Text>
-                  <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                    {selectedProperty.address}
-                  </Text>
-                  <HStack justify="space-between">
-                    <Badge colorScheme={selectedProperty.ownedOrLeased === 'F' ? 'green' : 'blue'}>
-                      {selectedProperty.ownedOrLeased === 'F' ? 'Owned' : 'Leased'}
-                    </Badge>
-                    <Text fontSize="sm">
-                      {formatSquareFootage(selectedProperty.squareFootage)}
-                    </Text>
-                  </HStack>
-                  <Text fontSize="sm">
-                    <strong>Type:</strong> {selectedProperty.assetType}
-                  </Text>
-                  <HStack justify="space-between">
-                    <Link
-                      href={getStreetViewUrl(selectedProperty.address)}
-                      isExternal
-                      color="blue.500"
-                      fontSize="sm"
-                    >
-                      Street View <ExternalLinkIcon mx="2px" />
-                    </Link>
-                    <Button
-                      size="xs"
-                      onClick={() => setSelectedProperty(null)}
-                      variant="ghost"
-                    >
-                      Close
-                    </Button>
-                  </HStack>
-                </VStack>
-              </CardBody>
-            </Card>
-          )}
         </Box>
 
-        <Box mt={4}>
-          <HStack justify="space-between" align="center">
-            <Text fontSize="sm" color="gray.600">
-              🗺️ Click markers for property details • Use map controls to switch between satellite and street view
-            </Text>
-            <HStack spacing={2} fontSize="xs">
-              <HStack>
-                <Box w="3" h="3" bg="green.500" borderRadius="full" />
-                <Text>Owned</Text>
-              </HStack>
-              <HStack>
-                <Box w="3" h="3" bg="blue.500" borderRadius="full" />
-                <Text>Leased</Text>
-              </HStack>
-            </HStack>
-          </HStack>
+        {/* Debug Info */}
+        <Box mt={4} p={4} bg="gray.50" borderRadius="lg">
+          <Text fontSize="sm" fontWeight="bold" mb={2}>🔧 Debug Information:</Text>
+          <VStack align="stretch" spacing={1} maxH="200px" overflowY="auto">
+            {debugInfo.map((info, index) => (
+              <Code key={index} fontSize="xs" p={1}>
+                {info}
+              </Code>
+            ))}
+          </VStack>
+          {debugInfo.length === 0 && (
+            <Text fontSize="sm" color="gray.500">No debug information yet...</Text>
+          )}
         </Box>
       </Box>
     </MainLayout>
