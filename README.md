@@ -67,7 +67,7 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
 2. Enable Firestore Database
 3. Create two collections:
-   - `ownedProperties` - for government-owned buildings
+   - `buildings` - for government-owned buildings
    - `leasedProperties` - for leased properties
 4. Import your CSV data using the provided import script
 
@@ -207,3 +207,10 @@ For support and questions:
 - Create an issue in the GitHub repository
 - Check the troubleshooting section above
 - Review the documentation links provided 
+
+## Database Structure
+
+The application uses Firebase Firestore with two main collections:
+
+- `buildings` - for government-owned buildings
+- `leasedProperties` - for leased government properties 

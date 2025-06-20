@@ -2,10 +2,11 @@ import { collection, getDocs, query, where, orderBy, limit } from 'firebase/fire
 import { db } from '@/lib/firebase/config';
 import { TOwnedProperty, TLeasedProperty, TPropertyForTable, TMapMarker } from '@/types/property';
 
-export const COLLECTIONS = {
-  OWNED_PROPERTIES: 'ownedProperties',
+// Collection names
+const COLLECTIONS = {
+  OWNED_PROPERTIES: 'buildings',
   LEASED_PROPERTIES: 'leasedProperties',
-} as const;
+};
 
 // Generic function to get all documents from a collection
 async function getCollection<T>(collectionName: string): Promise<T[]> {

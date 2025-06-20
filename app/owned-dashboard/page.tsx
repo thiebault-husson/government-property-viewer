@@ -15,6 +15,9 @@ import {
   Text,
   Spinner,
   Center,
+  VStack,
+  SimpleGrid,
+  Heading,
 } from '@chakra-ui/react';
 import {
   BarChart,
@@ -32,7 +35,7 @@ import {
 import MainLayout from '@/app/components/layout/main-layout';
 import { getOwnedPropertiesForDashboard } from '@/lib/services/property-service';
 import {
-  groupOwnedPropertiesByDecade,
+  groupBuildingsByDecade,
   calculateOwnedPropertyStats,
   calculateSquareFootageData,
   formatNumber,
@@ -73,140 +76,77 @@ export default function OwnedDashboardPage() {
   }
 
   const stats = calculateOwnedPropertyStats(properties);
-  const decadeData = groupOwnedPropertiesByDecade(properties);
+  const decadeData = groupBuildingsByDecade(properties);
   const squareFootageData = calculateSquareFootageData(properties);
 
   return (
     <MainLayout title="Owned Properties Dashboard">
-      <Box>
-        {/* Statistics Cards */}
-        <Grid templateColumns="repeat(auto-fit, minmax(250px, 1fr))" gap={6} mb={8}>
-          <GridItem>
-            <Card>
-              <CardBody>
-                <Stat>
-                  <StatLabel>Total Properties</StatLabel>
-                  <StatNumber>{formatNumber(stats.totalProperties)}</StatNumber>
-                  <StatHelpText>Government-owned buildings</StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          </GridItem>
+      <VStack spacing={6} align="stretch">
+        <Heading size="lg">Owned Properties Dashboard</Heading>
+        
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
+          <Stat>
+            <StatLabel>Total Properties</StatLabel>
+            <StatNumber>{formatNumber(stats.totalProperties)}</StatNumber>
+            <StatHelpText>Government-owned buildings</StatHelpText>
+          </Stat>
           
-          <GridItem>
-            <Card>
-              <CardBody>
-                <Stat>
-                  <StatLabel>Total Square Footage</StatLabel>
-                  <StatNumber>{formatSquareFootage(stats.totalSquareFootage)}</StatNumber>
-                  <StatHelpText>Rentable space</StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          </GridItem>
+          <Stat>
+            <StatLabel>Total Square Footage</StatLabel>
+            <StatNumber>{formatSquareFootage(stats.totalSquareFootage)}</StatNumber>
+            <StatHelpText>Rentable space</StatHelpText>
+          </Stat>
           
-          <GridItem>
-            <Card>
-              <CardBody>
-                <Stat>
-                  <StatLabel>Average Size</StatLabel>
-                  <StatNumber>{formatSquareFootage(stats.averageSquareFootage)}</StatNumber>
-                  <StatHelpText>Per property</StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          </GridItem>
-        </Grid>
+          <Stat>
+            <StatLabel>Average Size</StatLabel>
+            <StatNumber>{formatSquareFootage(stats.averageSquareFootage)}</StatNumber>
+            <StatHelpText>Per property</StatHelpText>
+          </Stat>
+          
+          <Stat>
+            <StatLabel>Portfolio Age</StatLabel>
+            <StatNumber>Mixed</StatNumber>
+            <StatHelpText>Various construction dates</StatHelpText>
+          </Stat>
+        </SimpleGrid>
 
-        {/* Charts */}
-        <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={6} mb={8}>
-          <GridItem>
-            <Card>
-              <CardHeader>
-                <Text fontSize="lg" fontWeight="bold">
-                  Properties by Construction Decade
-                </Text>
-              </CardHeader>
-              <CardBody>
-                <Box className="chart-container">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={decadeData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#3182CE" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              </CardBody>
-            </Card>
-          </GridItem>
-          
-          <GridItem>
-            <Card>
-              <CardHeader>
-                <Text fontSize="lg" fontWeight="bold">
-                  Space Utilization
-                </Text>
-              </CardHeader>
-              <CardBody>
-                <Box className="chart-container">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={squareFootageData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percentage }) => `${name} ${percentage}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {squareFootageData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatSquareFootage(Number(value))} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </Box>
-              </CardBody>
-            </Card>
-          </GridItem>
-        </Grid>
+        <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
+          <Box p={6} bg="white" rounded="lg" shadow="md">
+            <Heading size="md" mb={4}>Construction by Decade</Heading>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={decadeData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" fill="#3182CE" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
 
-        {/* Building Information */}
-        <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={6}>
-          <GridItem>
-            <Card>
-              <CardHeader>
-                <Text fontSize="lg" fontWeight="bold">
-                  Oldest Building
-                </Text>
-              </CardHeader>
-              <CardBody>
-                <Text fontSize="sm">{stats.oldestBuilding}</Text>
-              </CardBody>
-            </Card>
-          </GridItem>
-          
-          <GridItem>
-            <Card>
-              <CardHeader>
-                <Text fontSize="lg" fontWeight="bold">
-                  Newest Building
-                </Text>
-              </CardHeader>
-              <CardBody>
-                <Text fontSize="sm">{stats.newestBuilding}</Text>
-              </CardBody>
-            </Card>
-          </GridItem>
-        </Grid>
-      </Box>
+          <Box p={6} bg="white" rounded="lg" shadow="md">
+            <Heading size="md" mb={4}>Space Utilization</Heading>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={squareFootageData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {squareFootageData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => formatSquareFootage(Number(value))} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </Box>
+        </SimpleGrid>
+      </VStack>
     </MainLayout>
   );
 } 
