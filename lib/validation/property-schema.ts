@@ -1,21 +1,21 @@
 import { z } from 'zod';
 
-export const OwnedPropertySchema = z.object({
+export const BuildingSchema = z.object({
   locationCode: z.string(),
   realPropertyAssetName: z.string(),
   installationName: z.string(),
   ownedOrLeased: z.enum(['F', 'L']),
-  gsaRegion: z.string(),
+  gsaRegion: z.number(),
   streetAddress: z.string(),
   city: z.string(),
   state: z.string(),
-  zipCode: z.string(),
+  zipCode: z.number(),
   latitude: z.number(),
   longitude: z.number(),
   buildingRentableSquareFeet: z.number(),
   availableSquareFeet: z.number(),
-  constructionDate: z.string(),
-  congressionalDistrict: z.string(),
+  constructionDate: z.number(),
+  congressionalDistrict: z.number(),
   congressionalDistrictRepresentativeName: z.string(),
   buildingStatus: z.string(),
   realPropertyAssetType: z.string(),
@@ -26,20 +26,20 @@ export const LeasedPropertySchema = z.object({
   realPropertyAssetName: z.string(),
   installationName: z.string(),
   federalLeasedCode: z.string(),
-  gsaRegion: z.string(),
+  gsaRegion: z.number(),
   streetAddress: z.string(),
   city: z.string(),
   state: z.string(),
-  zipCode: z.string(),
+  zipCode: z.number(),
   latitude: z.number(),
   longitude: z.number(),
   buildingRentableSquareFeet: z.number(),
   availableSquareFeet: z.number(),
-  congressionalDistrict: z.string(),
+  congressionalDistrict: z.number(),
   congressionalDistrictRepresentative: z.string(),
   leaseNumber: z.string(),
-  leaseEffectiveDate: z.string(),
-  leaseExpirationDate: z.string(),
+  leaseEffectiveDate: z.date(),
+  leaseExpirationDate: z.date(),
   realPropertyAssetType: z.string(),
 });
 
@@ -65,8 +65,8 @@ export const MapMarkerSchema = z.object({
 });
 
 // Validation functions
-export function validateOwnedProperty(data: unknown) {
-  return OwnedPropertySchema.safeParse(data);
+export function validateBuilding(data: unknown) {
+  return BuildingSchema.safeParse(data);
 }
 
 export function validateLeasedProperty(data: unknown) {
@@ -79,4 +79,8 @@ export function validatePropertyForTable(data: unknown) {
 
 export function validateMapMarker(data: unknown) {
   return MapMarkerSchema.safeParse(data);
-} 
+}
+
+// Legacy alias for backward compatibility
+export const OwnedPropertySchema = BuildingSchema;
+export const validateOwnedProperty = validateBuilding; 

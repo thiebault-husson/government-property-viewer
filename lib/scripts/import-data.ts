@@ -26,8 +26,13 @@ function parseCSV(csvContent: string): any[] {
   
   // Define which fields should be treated as numbers
   const numericFields = new Set([
-    'latitude', 'longitude', 'building_rentable_square_feet', 
-    'available_square_feet', 'zip_code', 'gsa_region', 'construction_date', 'congressional_district'
+    'gsa_region', 'zip_code', 'latitude', 'longitude', 'building_rentable_square_feet', 
+    'available_square_feet',  'construction_date', 'congressional_district'
+  ]);
+  
+  // Define which fields should be treated as dates (yyyy-mm-dd format)
+  const dateFields = new Set([
+    'lease_effective_date', 'lease_expiration_date'
   ]);
   
   return lines.slice(1).map((line, index) => {
@@ -46,6 +51,10 @@ function parseCSV(csvContent: string): any[] {
         // Convert to appropriate type
         if (value === '' || value === 'NA' || value === 'N/A' || value === 'null') {
           obj[cleanHeader] = null;
+        } else if (dateFields.has(cleanHeader.toLowerCase()) && value !== '') {
+          // Parse date from yyyy-mm-dd format
+          const parsedDate = parseDate(value);
+          obj[cleanHeader] = parsedDate;
         } else if (numericFields.has(cleanHeader.toLowerCase()) && !isNaN(Number(value)) && value !== '' && !isNaN(parseFloat(value))) {
           // Only convert to number if field is in our numeric whitelist
           obj[cleanHeader] = Number(value);
@@ -86,6 +95,30 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+// Parse date from yyyy-mm-dd format to JavaScript Date object
+function parseDate(dateString: string): Date | null {
+  if (!dateString || dateString.trim() === '') {
+    return null;
+  }
+  
+  // Validate yyyy-mm-dd format
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateString)) {
+    console.warn(`Invalid date format: ${dateString}. Expected yyyy-mm-dd format.`);
+    return null;
+  }
+  
+  const date = new Date(dateString + 'T00:00:00.000Z'); // Add time to ensure UTC
+  
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    console.warn(`Invalid date: ${dateString}`);
+    return null;
+  }
+  
+  return date;
+}
+
 // Clean field names for Firestore (no dots, slashes, etc.)
 function cleanFieldName(name: string): string {
   return name
@@ -109,7 +142,7 @@ function transformOwnedProperty(row: any) {
     streetAddress: String(row['Street_Address'] || row['Street Address'] || ''),
     city: String(row['City'] || ''),
     state: String(row['State'] || ''),
-    zipCode: String(row['Zip_Code'] || row['Zip Code'] || ''),
+    zipCode: row['Zip_Code'] || row['Zip Code'] || null,
     latitude: Number(row['Latitude'] || 0),
     longitude: Number(row['Longitude'] || 0),
     buildingRentableSquareFeet: Number(row['Building_Rentable_Square_Feet'] || row['Building Rentable Square Feet'] || 0),
@@ -133,7 +166,7 @@ function transformLeasedProperty(row: any) {
     streetAddress: String(row['Street_Address'] || row['Street Address'] || ''),
     city: String(row['City'] || ''),
     state: String(row['State'] || ''),
-    zipCode: String(row['Zip_Code'] || row['Zip Code'] || ''),
+    zipCode: row['Zip_Code'] || row['Zip Code'] || null,
     latitude: Number(row['Latitude'] || 0),
     longitude: Number(row['Longitude'] || 0),
     buildingRentableSquareFeet: Number(row['Building_Rentable_Square_Feet'] || row['Building Rentable Square Feet'] || 0),
@@ -141,8 +174,8 @@ function transformLeasedProperty(row: any) {
     congressionalDistrict: row['Congressional_District'] || row['Congressional District'] || null,
     congressionalDistrictRepresentative: String(row['Congressional_District_Representative'] || row['Congressional District Representative'] || ''),
     leaseNumber: String(row['Lease_Number'] || row['Lease Number'] || ''),
-    leaseEffectiveDate: String(row['Lease_Effective_Date'] || row['Lease Effective Date'] || ''),
-    leaseExpirationDate: String(row['Lease_Expiration_Date'] || row['Lease Expiration Date'] || ''),
+    leaseEffectiveDate: row['Lease_Effective_Date'] || row['Lease Effective Date'] || null,
+    leaseExpirationDate: row['Lease_Expiration_Date'] || row['Lease Expiration Date'] || null,
     realPropertyAssetType: String(row['Real_Property_Asset_type'] || row['Real Property Asset Type'] || ''),
   };
 }

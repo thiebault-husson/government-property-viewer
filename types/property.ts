@@ -36,8 +36,8 @@ export interface TLeasedProperty {
   congressionalDistrict: number;
   congressionalDistrictRepresentative: string;
   leaseNumber: string;
-  leaseEffectiveDate: string;
-  leaseExpirationDate: string;
+  leaseEffectiveDate: Date;
+  leaseExpirationDate: Date;
   realPropertyAssetType: string;
 }
 

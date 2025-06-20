@@ -16,15 +16,33 @@ export function formatSquareFootage(sqft: number): string {
   }
 }
 
-// Format date
-export function formatDate(dateString: string): string {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+// Format date - handles both Date objects and date strings
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return 'N/A';
+  
+  // If it's already a Date object, use it directly
+  if (date instanceof Date) {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+  
+  // If it's a string, convert to Date first
+  if (typeof date === 'string') {
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid Date';
+    }
+    return dateObj.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+  
+  return 'N/A';
 }
 
 // Group buildings by construction decade for charts
