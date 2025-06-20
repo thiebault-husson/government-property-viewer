@@ -24,9 +24,6 @@ export async function getAllBuildings(): Promise<TBuilding[]> {
   return getCollection<TBuilding>(COLLECTIONS.BUILDINGS);
 }
 
-// Legacy function name for backward compatibility
-export const getAllOwnedProperties = getAllBuildings;
-
 // Get all leased properties
 export async function getAllLeasedProperties(): Promise<TLeasedProperty[]> {
   return getCollection<TLeasedProperty>(COLLECTIONS.LEASED_PROPERTIES);
@@ -35,18 +32,18 @@ export async function getAllLeasedProperties(): Promise<TLeasedProperty[]> {
 // Get all properties for table display
 export async function getAllPropertiesForTable(): Promise<TPropertyForTable[]> {
   try {
-    const [ownedProperties, leasedProperties] = await Promise.all([
-      getAllOwnedProperties(),
+    const [buildings, leasedProperties] = await Promise.all([
+      getAllBuildings(),
       getAllLeasedProperties(),
     ]);
 
-    const ownedForTable: TPropertyForTable[] = ownedProperties.map(prop => ({
+    const ownedForTable: TPropertyForTable[] = buildings.map(prop => ({
       realPropertyAssetName: prop.realPropertyAssetName,
       streetAddress: prop.streetAddress,
       city: prop.city,
       state: prop.state,
-      zipCode: prop.zipCode,
-      constructionDate: prop.constructionDate,
+      zipCode: String(prop.zipCode),
+      constructionDate: prop.constructionDate ? String(prop.constructionDate) : undefined,
       ownedOrLeased: prop.ownedOrLeased,
     }));
 
@@ -55,7 +52,7 @@ export async function getAllPropertiesForTable(): Promise<TPropertyForTable[]> {
       streetAddress: prop.streetAddress,
       city: prop.city,
       state: prop.state,
-      zipCode: prop.zipCode,
+      zipCode: String(prop.zipCode),
       ownedOrLeased: 'L' as const,
     }));
 
@@ -69,12 +66,12 @@ export async function getAllPropertiesForTable(): Promise<TPropertyForTable[]> {
 // Get all properties for map display
 export async function getAllPropertiesForMap(): Promise<TMapMarker[]> {
   try {
-    const [ownedProperties, leasedProperties] = await Promise.all([
-      getAllOwnedProperties(),
+    const [buildings, leasedProperties] = await Promise.all([
+      getAllBuildings(),
       getAllLeasedProperties(),
     ]);
 
-    const ownedMarkers: TMapMarker[] = ownedProperties
+    const ownedMarkers: TMapMarker[] = buildings
       .filter(prop => prop.latitude && prop.longitude)
       .map(prop => ({
         id: prop.locationCode,
@@ -116,7 +113,7 @@ export async function getOwnedPropertiesForDashboard(): Promise<TBuilding[]> {
       orderBy('constructionDate', 'asc')
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TBuilding));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as TBuilding));
   } catch (error) {
     console.error('Error fetching owned properties for dashboard:', error);
     return [];
@@ -131,7 +128,7 @@ export async function getLeasedPropertiesForDashboard(): Promise<TLeasedProperty
       orderBy('leaseExpirationDate', 'asc')
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TLeasedProperty));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as TLeasedProperty));
   } catch (error) {
     console.error('Error fetching leased properties for dashboard:', error);
     return [];

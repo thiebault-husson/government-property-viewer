@@ -41,8 +41,7 @@ export interface TLeasedProperty {
   realPropertyAssetType: string;
 }
 
-// Legacy alias for backward compatibility during transition
-export type TOwnedProperty = TBuilding;
+
 
 export interface TPropertyForTable {
   realPropertyAssetName: string;

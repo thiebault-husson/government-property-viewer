@@ -14,7 +14,7 @@ import NextLink from 'next/link';
 import { 
   FiHome, 
   FiMap, 
-  FiBarChart3, 
+  FiBarChart, 
   FiCalendar,
   FiDatabase 
 } from 'react-icons/fi';
@@ -83,7 +83,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const linkItems = [
     { name: 'All Properties', icon: FiDatabase, href: '/all-properties' },
     { name: 'Map View', icon: FiMap, href: '/map' },
-    { name: 'Owned Properties', icon: FiBarChart3, href: '/owned-dashboard' },
+    { name: 'Federal Owned', icon: FiBarChart, href: '/owned-dashboard' },
     { name: 'Leased Properties', icon: FiCalendar, href: '/leased-dashboard' },
   ];
 

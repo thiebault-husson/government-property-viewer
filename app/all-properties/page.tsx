@@ -11,6 +11,8 @@ import {
   Td,
   TableContainer,
   Input,
+  InputGroup,
+  InputLeftElement,
   Button,
   Flex,
   Text,
@@ -138,13 +140,18 @@ export default function AllPropertiesPage() {
         </Flex>
 
         <Flex mb={6} gap={4}>
-          <Input
-            placeholder="Search properties..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            leftElement={<SearchIcon color="gray.300" />}
-            maxW="400px"
-          />
+          <InputGroup>
+            <InputLeftElement
+              pointerEvents="none"
+              children={<SearchIcon color="gray.300" />}
+            />
+            <Input
+              placeholder="Search properties..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              maxW="400px"
+            />
+          </InputGroup>
         </Flex>
 
         <TableContainer>

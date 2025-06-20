@@ -81,6 +81,4 @@ export function validateMapMarker(data: unknown) {
   return MapMarkerSchema.safeParse(data);
 }
 
-// Legacy alias for backward compatibility
-export const OwnedPropertySchema = BuildingSchema;
-export const validateOwnedProperty = validateBuilding; 
+ 

@@ -131,8 +131,9 @@ function cleanFieldName(name: string): string {
     .toLowerCase();
 }
 
-// Transform owned properties data to TBuilding objects for the buildings collection
-function transformOwnedProperty(row: any) {
+// Transform buildings data to TBuilding objects for the buildings collection
+// This handles both owned (F) and leased (L) properties from the buildings CSV
+function transformBuilding(row: any) {
   return {
     locationCode: String(row['Location_Code'] || row['Location Code'] || ''),
     realPropertyAssetName: String(row['Real_Property_Asset_Name'] || row['Real Property Asset Name'] || ''),
@@ -155,7 +156,7 @@ function transformOwnedProperty(row: any) {
   };
 }
 
-// Transform leased properties data with better field names
+// Transform leased properties data with additional lease-specific fields
 function transformLeasedProperty(row: any) {
   return {
     locationCode: String(row['Location_Code'] || row['Location Code'] || ''),
@@ -216,31 +217,37 @@ async function importData() {
   try {
     console.log('🚀 Starting data import...\n');
     
-    // Read and parse owned properties CSV
-    console.log('📖 Reading owned properties CSV...');
-    const ownedCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-buildings.csv');
-    const ownedCsvContent = readFileSync(ownedCsvPath, 'utf-8');
-    const ownedRawData = parseCSV(ownedCsvContent);
-    const ownedData = ownedRawData.map(transformOwnedProperty).filter(item => item.locationCode); // Filter out empty records
+    // Read and parse buildings CSV (contains both owned and leased properties)
+    console.log('📖 Reading buildings CSV...');
+    const buildingsCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-buildings.csv');
+    const buildingsCsvContent = readFileSync(buildingsCsvPath, 'utf-8');
+    const buildingsRawData = parseCSV(buildingsCsvContent);
+    const buildingsData = buildingsRawData.map(transformBuilding).filter(item => item.locationCode); // Filter out empty records
     
-    // Read and parse leased properties CSV
+    // Read and parse leased properties CSV (lease-specific details)
     console.log('📖 Reading leased properties CSV...');
-    const leasedCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-leased-properties.csv');
+    const leasedCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-leases.csv');
     const leasedCsvContent = readFileSync(leasedCsvPath, 'utf-8');
     const leasedRawData = parseCSV(leasedCsvContent);
     const leasedData = leasedRawData.map(transformLeasedProperty).filter(item => item.locationCode); // Filter out empty records
     
-    console.log(`\n📊 Data Summary:`);
-    console.log(`   Owned Properties: ${ownedData.length}`);
-    console.log(`   Leased Properties: ${leasedData.length}`);
-    console.log(`   Total Properties: ${ownedData.length + leasedData.length}\n`);
+    // Count owned vs leased in buildings data
+    const ownedCount = buildingsData.filter(building => building.ownedOrLeased === 'F').length;
+    const leasedCount = buildingsData.filter(building => building.ownedOrLeased === 'L').length;
     
-    // Upload owned properties
-    if (ownedData.length > 0) {
-      await uploadInBatches('buildings', ownedData);
+    console.log(`\n📊 Data Summary:`);
+    console.log(`   Buildings (Total): ${buildingsData.length}`);
+    console.log(`     - Federal Owned: ${ownedCount}`);
+    console.log(`     - Leased: ${leasedCount}`);
+    console.log(`   Lease Details: ${leasedData.length}`);
+    console.log(`   Total Records: ${buildingsData.length + leasedData.length}\n`);
+    
+    // Upload buildings (both owned and leased)
+    if (buildingsData.length > 0) {
+      await uploadInBatches('buildings', buildingsData);
     }
     
-    // Upload leased properties
+    // Upload leased properties with additional lease details
     if (leasedData.length > 0) {
       await uploadInBatches('leasedProperties', leasedData);
     }
