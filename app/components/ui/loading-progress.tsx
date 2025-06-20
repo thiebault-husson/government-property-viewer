@@ -18,6 +18,7 @@ interface LoadingProgressProps {
   showSpinner?: boolean;
   height?: string;
   maxWidth?: string;
+  progressColor?: string;
 }
 
 export default function LoadingProgress({
@@ -27,7 +28,8 @@ export default function LoadingProgress({
   subtitle,
   showSpinner = true,
   height = "500px",
-  maxWidth = "500px"
+  maxWidth = "500px",
+  progressColor = "blue"
 }: LoadingProgressProps) {
   return (
     <Center h={height}>
@@ -50,7 +52,7 @@ export default function LoadingProgress({
           <Progress 
             value={progress} 
             size="lg" 
-            colorScheme="blue" 
+            colorScheme={progressColor.replace('.500', '').replace('.', '')} 
             hasStripe
             isAnimated
             borderRadius="md"

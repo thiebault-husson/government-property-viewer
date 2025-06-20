@@ -13,16 +13,32 @@ import {
   AlertDescription,
   Code,
   Button,
+  ButtonGroup,
+  HStack,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from '@chakra-ui/react';
 import MainLayout from '@/app/components/layout/main-layout';
+import LoadingProgress from '@/app/components/ui/loading-progress';
 import { TMapMarker } from '@/types/property';
 
 export default function MapPage() {
   const [mapLoading, setMapLoading] = useState(true);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false); // Start as false since we're not loading data initially
+  const [dataLoadingProgress, setDataLoadingProgress] = useState({ current: 0, total: 0, percentage: 0, message: '' });
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [properties, setProperties] = useState<TMapMarker[]>([]);
+  const [allProperties, setAllProperties] = useState<TMapMarker[]>([]);
+  const [displayLimit, setDisplayLimit] = useState<number>(50);
+  const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
+  const [isLoadingMarkers, setIsLoadingMarkers] = useState(false);
+  const [markerProgress, setMarkerProgress] = useState({ current: 0, total: 0, percentage: 0 });
+  const [currentDisplayedProperties, setCurrentDisplayedProperties] = useState<TMapMarker[]>([]);
+  const [ownedMarkersVisible, setOwnedMarkersVisible] = useState(true);
+  const [leasedMarkersVisible, setLeasedMarkersVisible] = useState(true);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
 
@@ -31,70 +47,231 @@ export default function MapPage() {
     setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
   };
 
-  const loadProperties = async () => {
+  const loadProperties = async (limitCount?: number) => {
     try {
       setDataLoading(true);
-      addDebugInfo('📊 Loading property data...');
+      setDataLoadingProgress({ current: 0, total: 100, percentage: 0, message: 'Initializing...' });
+      
+      const effectiveLimit = limitCount || displayLimit;
+      addDebugInfo(`📊 Loading property data with limit: ${effectiveLimit}...`);
+      
+      // Progress: 10% - Starting data fetch
+      setDataLoadingProgress({ current: 10, total: 100, percentage: 10, message: 'Connecting to database...' });
       
       // Dynamic import to avoid server-side execution
-      const { getAllPropertiesForMap } = await import('@/lib/services/property-service');
-      const data = await getAllPropertiesForMap();
-      addDebugInfo(`✅ Loaded ${data.length} properties`);
+      const { getAllPropertiesForMapWithLimit, getAllPropertiesForMap } = await import('@/lib/services/property-service');
       
+      // Progress: 20% - Service loaded
+      setDataLoadingProgress({ current: 20, total: 100, percentage: 20, message: 'Fetching property data...' });
+      
+      let data: TMapMarker[];
+      if (effectiveLimit >= 10000) {
+        // For "All" option, use the original function
+        addDebugInfo('📊 Loading ALL properties (no limit)...');
+        setDataLoadingProgress({ current: 30, total: 100, percentage: 30, message: 'Loading all properties...' });
+        data = await getAllPropertiesForMap();
+      } else {
+        // For specific limits, use the optimized function
+        addDebugInfo(`📊 Loading ${effectiveLimit} properties (optimized query)...`);
+        setDataLoadingProgress({ current: 30, total: 100, percentage: 30, message: `Loading ${effectiveLimit} properties...` });
+        data = await getAllPropertiesForMapWithLimit(effectiveLimit);
+      }
+      
+      // Progress: 60% - Data loaded
+      setDataLoadingProgress({ current: 60, total: 100, percentage: 60, message: 'Processing property data...' });
+      addDebugInfo(`✅ Loaded ${data.length} properties from database`);
+      
+      // Analyze coordinate data quality
+      const validCoordinates = data.filter(prop => 
+        prop.lat && prop.lng && 
+        !isNaN(prop.lat) && !isNaN(prop.lng) &&
+        prop.lat !== 0 && prop.lng !== 0
+      );
+      const invalidCoordinates = data.filter(prop => 
+        !prop.lat || !prop.lng || 
+        isNaN(prop.lat) || isNaN(prop.lng) ||
+        prop.lat === 0 || prop.lng === 0
+      );
+      
+      // Progress: 80% - Data processed
+      setDataLoadingProgress({ current: 80, total: 100, percentage: 80, message: 'Validating coordinates...' });
+      
+      addDebugInfo(`📍 Coordinate Analysis:`);
+      addDebugInfo(`  ✅ Valid coordinates: ${validCoordinates.length}`);
+      addDebugInfo(`  ❌ Invalid/missing coordinates: ${invalidCoordinates.length}`);
+      
+      // Log some examples of invalid addresses for debugging
+      if (invalidCoordinates.length > 0 && invalidCoordinates.length < 10) {
+        addDebugInfo(`🔍 Invalid addresses:`);
+        invalidCoordinates.forEach((prop, index) => {
+          addDebugInfo(`  ${index + 1}. ${prop.name} - ${prop.address} (lat: ${prop.lat}, lng: ${prop.lng})`);
+        });
+      }
+      
+      // Progress: 90% - Almost done
+      setDataLoadingProgress({ current: 90, total: 100, percentage: 90, message: 'Finalizing data...' });
+      
+      // Store both all properties and current subset
+      setAllProperties(data);
       setProperties(data);
+      
+      // Progress: 100% - Complete
+      setDataLoadingProgress({ current: 100, total: 100, percentage: 100, message: 'Data loaded successfully!' });
+      
+      // Small delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       setDataLoading(false);
       
-      // Add markers to map if map is ready
-      if (mapInstanceRef.current && data.length > 0) {
-        addMarkers(data);
+      // Add markers to map if map is ready - only use valid coordinates
+      if (mapInstanceRef.current && validCoordinates.length > 0) {
+        addMarkers(validCoordinates);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load properties';
       addDebugInfo(`❌ Data Error: ${errorMessage}`);
       setError(errorMessage);
       setDataLoading(false);
+      setDataLoadingProgress({ current: 0, total: 100, percentage: 0, message: 'Error loading data' });
     }
   };
 
-  const addMarkers = (propertyData: TMapMarker[]) => {
-    if (!mapInstanceRef.current) return;
+  const clearMarkers = () => {
+    addDebugInfo(`🧹 Clearing ${markers.length} existing markers from map...`);
     
-    addDebugInfo(`📍 Adding ${propertyData.length} markers to map...`);
-    
-    let ownedCount = 0;
-    let leasedCount = 0;
-    
-    // Add color-coded markers for each property
-    propertyData.forEach((property, index) => {
-      // Only add first 50 markers for testing
-      if (index >= 50) return;
-      
-      const isOwned = property.ownedOrLeased === 'F';
-      if (isOwned) ownedCount++;
-      else leasedCount++;
-      
-      // Debug: Log first few properties to see their ownership status
-      if (index < 5) {
-        addDebugInfo(`Property ${index + 1}: ${property.name} - ownedOrLeased: "${property.ownedOrLeased}" - isOwned: ${isOwned}`);
-      }
-      
-      const marker = new google.maps.Marker({
-        position: { lat: property.lat, lng: property.lng },
-        map: mapInstanceRef.current,
-        title: `${property.name} (${isOwned ? 'Owned' : 'Leased'})`,
-      });
-      
-      // Set marker color based on ownership
-      if (isOwned) {
-        // Green marker for owned properties
-        marker.setIcon('http://maps.google.com/mapfiles/ms/icons/green-dot.png');
-      } else {
-        // Blue marker for leased properties  
-        marker.setIcon('http://maps.google.com/mapfiles/ms/icons/blue-dot.png');
+    // Remove all markers from the map and clear their references
+    markers.forEach((marker, index) => {
+      try {
+        marker.setMap(null); // Remove from map
+        marker.setVisible(false); // Ensure visibility is off
+      } catch (error) {
+        addDebugInfo(`⚠️ Error clearing marker ${index}: ${error}`);
       }
     });
     
-    addDebugInfo(`✅ Added ${Math.min(propertyData.length, 50)} markers: ${ownedCount} owned (green), ${leasedCount} leased (blue)`);
+    // Clear the markers array and displayed properties
+    setMarkers([]);
+    setCurrentDisplayedProperties([]);
+    
+    addDebugInfo(`✅ Map cleared - all markers removed`);
+  };
+
+  const addMarkers = async (propertyData: TMapMarker[], customLimit?: number) => {
+    if (!mapInstanceRef.current) {
+      addDebugInfo('❌ Cannot add markers - map not initialized');
+      return;
+    }
+    
+    // ALWAYS clear existing markers first - this ensures a clean slate
+    addDebugInfo('🧹 Starting with clean map...');
+    clearMarkers();
+    
+    // Reset current displayed properties to empty
+    setCurrentDisplayedProperties([]);
+    
+    // Use custom limit if provided, otherwise use current displayLimit
+    const effectiveLimit = customLimit !== undefined ? customLimit : displayLimit;
+    const totalToProcess = Math.min(propertyData.length, effectiveLimit);
+    
+    addDebugInfo(`📍 Adding ${totalToProcess} new markers to clean map (limit: ${effectiveLimit})...`);
+    
+    // Start loading progress
+    setIsLoadingMarkers(true);
+    setMarkerProgress({ current: 0, total: totalToProcess, percentage: 0 });
+    
+    let ownedCount = 0;
+    let leasedCount = 0;
+    let validMarkerCount = 0;
+    let invalidCoordCount = 0;
+    const newMarkers: google.maps.Marker[] = [];
+    const displayedProperties: TMapMarker[] = [];
+    
+    // Process markers in batches for better performance and smooth progress
+    const batchSize = 10;
+    let processedCount = 0;
+    
+    for (let i = 0; i < totalToProcess; i += batchSize) {
+      const batch = propertyData.slice(i, Math.min(i + batchSize, totalToProcess));
+      
+      // Process batch
+      for (const property of batch) {
+        const index = i + batch.indexOf(property);
+        
+        // Validate coordinates before creating marker
+        if (!property.lat || !property.lng || 
+            isNaN(property.lat) || isNaN(property.lng) ||
+            property.lat === 0 || property.lng === 0) {
+          invalidCoordCount++;
+          if (index < 5) { // Log first 5 invalid coordinates
+            addDebugInfo(`❌ Invalid coords for: ${property.name} (lat: ${property.lat}, lng: ${property.lng})`);
+          }
+          processedCount++;
+          continue;
+        }
+        
+        const isOwned = property.ownedOrLeased === 'F';
+        if (isOwned) ownedCount++;
+        else leasedCount++;
+        
+        try {
+          // Create all markers with map: null initially for consistent behavior
+          const marker = new google.maps.Marker({
+            position: { lat: property.lat, lng: property.lng },
+            map: null, // Always start with null, then set visibility after creation
+            title: `${property.name} (${isOwned ? 'Owned' : 'Leased'})`,
+            visible: false, // Start invisible, then set proper visibility
+          });
+          
+          // Set marker color based on ownership
+          if (isOwned) {
+            marker.setIcon('http://maps.google.com/mapfiles/ms/icons/green-dot.png');
+          } else {
+            marker.setIcon('http://maps.google.com/mapfiles/ms/icons/blue-dot.png');
+          }
+          
+          // Now set proper visibility based on current toggle states
+          const shouldBeVisible = isOwned ? ownedMarkersVisible : leasedMarkersVisible;
+          if (shouldBeVisible) {
+            marker.setMap(mapInstanceRef.current);
+            marker.setVisible(true);
+          }
+          
+          newMarkers.push(marker);
+          displayedProperties.push(property);
+          validMarkerCount++;
+        } catch (error) {
+          addDebugInfo(`❌ Failed to create marker for: ${property.name} - ${error}`);
+        }
+        
+        processedCount++;
+      }
+      
+      // Update progress after each batch
+      const percentage = Math.round((processedCount / totalToProcess) * 100);
+      setMarkerProgress({ 
+        current: processedCount, 
+        total: totalToProcess, 
+        percentage 
+      });
+      
+      // Small delay to allow UI to update and prevent blocking
+      if (i + batchSize < totalToProcess) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+    
+    // Update state with new markers and properties
+    setMarkers(newMarkers);
+    setCurrentDisplayedProperties(displayedProperties);
+    setIsLoadingMarkers(false);
+    
+    addDebugInfo(`✅ Marker Summary:`);
+    addDebugInfo(`  📍 Valid markers created: ${validMarkerCount}`);
+    addDebugInfo(`  👁️ Visible markers: ${newMarkers.filter(m => m.getVisible()).length}`);
+    addDebugInfo(`  ❌ Invalid coordinates skipped: ${invalidCoordCount}`);
+    addDebugInfo(`  🟢 Owned properties: ${ownedCount} (visible: ${ownedMarkersVisible})`);
+    addDebugInfo(`  🔵 Leased properties: ${leasedCount} (visible: ${leasedMarkersVisible})`);
+    addDebugInfo(`  🎯 Display limit used: ${effectiveLimit}`);
   };
 
   const initializeMap = async () => {
@@ -160,8 +337,8 @@ export default function MapPage() {
       addDebugInfo('✅ Google Map created successfully');
       setMapLoading(false);
       
-      // Load property data
-      loadProperties();
+      // Map is ready - waiting for user to select properties to display
+      addDebugInfo('🎯 Map ready - select "Show Properties" to load data');
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -174,7 +351,118 @@ export default function MapPage() {
   const retryInitialization = () => {
     setDebugInfo([]);
     setProperties([]);
+    setAllProperties([]);
     initializeMap();
+  };
+
+  const changeDisplayLimit = async (newLimit: number) => {
+    addDebugInfo(`🔢 Display limit changing from ${displayLimit} to ${newLimit}`);
+    addDebugInfo(`📊 Before change - AllProperties: ${allProperties.length}, CurrentDisplayed: ${currentDisplayedProperties.length}`);
+    
+    setDisplayLimit(newLimit);
+    
+    // Reset visibility states to show both types when changing limits
+    setOwnedMarkersVisible(true);
+    setLeasedMarkersVisible(true);
+    
+    // Clear existing markers and data
+    clearMarkers();
+    
+    // Fetch new data with the optimized limit - this will fetch only what we need from Firebase
+    addDebugInfo(`🔄 Fetching new data with limit: ${newLimit}`);
+    await loadProperties(newLimit);
+    
+    addDebugInfo(`📊 After change - AllProperties: ${allProperties.length}, CurrentDisplayed: ${currentDisplayedProperties.length}, DisplayLimit: ${displayLimit}`);
+  };
+
+  // Helper functions to get counts from current subset
+  const getCurrentSubset = () => {
+    // Since we now fetch exactly the number of properties we need,
+    // use the currentDisplayedProperties which tracks what's actually on the map
+    return currentDisplayedProperties.filter(prop => 
+      prop.lat && prop.lng && 
+      !isNaN(prop.lat) && !isNaN(prop.lng) &&
+      prop.lat !== 0 && prop.lng !== 0
+    );
+  };
+
+  const getOwnedCountInSubset = () => {
+    return getCurrentSubset().filter(p => p.ownedOrLeased === 'F').length;
+  };
+
+  const getLeasedCountInSubset = () => {
+    return getCurrentSubset().filter(p => p.ownedOrLeased === 'L').length;
+  };
+
+  // New function to toggle marker visibility without reloading data
+  const toggleMarkerVisibility = (type: 'owned' | 'leased') => {
+    addDebugInfo(`🔘 Toggle button clicked: ${type}`);
+    addDebugInfo(`📊 Current state - Markers: ${markers.length}, Properties: ${currentDisplayedProperties.length}`);
+    
+    if (!mapInstanceRef.current) {
+      addDebugInfo('❌ Cannot toggle markers - map not initialized');
+      return;
+    }
+    
+    if (type === 'owned') {
+      const newVisibility = !ownedMarkersVisible;
+      setOwnedMarkersVisible(newVisibility);
+      addDebugInfo(`🟢 Setting owned markers visibility to: ${newVisibility}`);
+      
+      let toggledCount = 0;
+      let errorCount = 0;
+      
+      // Toggle visibility of owned markers (green)
+      markers.forEach((marker, index) => {
+        try {
+          const property = currentDisplayedProperties[index];
+          if (property && property.ownedOrLeased === 'F') {
+            if (newVisibility) {
+              marker.setMap(mapInstanceRef.current);
+              marker.setVisible(true);
+            } else {
+              marker.setMap(null);
+              marker.setVisible(false);
+            }
+            toggledCount++;
+          }
+        } catch (error) {
+          errorCount++;
+          addDebugInfo(`⚠️ Error toggling owned marker ${index}: ${error}`);
+        }
+      });
+      
+      addDebugInfo(`🟢 Owned markers ${newVisibility ? 'shown' : 'hidden'} - Toggled: ${toggledCount}, Errors: ${errorCount}`);
+    } else {
+      const newVisibility = !leasedMarkersVisible;
+      setLeasedMarkersVisible(newVisibility);
+      addDebugInfo(`🔵 Setting leased markers visibility to: ${newVisibility}`);
+      
+      let toggledCount = 0;
+      let errorCount = 0;
+      
+      // Toggle visibility of leased markers (blue)
+      markers.forEach((marker, index) => {
+        try {
+          const property = currentDisplayedProperties[index];
+          if (property && property.ownedOrLeased === 'L') {
+            if (newVisibility) {
+              marker.setMap(mapInstanceRef.current);
+              marker.setVisible(true);
+            } else {
+              marker.setMap(null);
+              marker.setVisible(false);
+            }
+            toggledCount++;
+          }
+        } catch (error) {
+          errorCount++;
+          addDebugInfo(`⚠️ Error toggling leased marker ${index}: ${error}`);
+        }
+      });
+      
+      addDebugInfo(`🔵 Leased markers ${newVisibility ? 'shown' : 'hidden'} - Toggled: ${toggledCount}, Errors: ${errorCount}`);
+    }
   };
 
   useEffect(() => {
@@ -229,9 +517,67 @@ export default function MapPage() {
           <Text fontSize="2xl" fontWeight="bold" mb={2}>
             Government Property Map
           </Text>
-          <Text fontSize="sm" color="gray.600">
-            Step 2: Color-coded pins • {properties.length} properties loaded • Green = Owned, Blue = Leased
+          <Text fontSize="sm" color="gray.600" mb={4}>
+            {getCurrentSubset().length === 0 
+              ? "Select 'Show Properties' to load government property data on the map" 
+              : `Dynamic Filtering • ${getCurrentSubset().length} properties displayed (Owned: ${getOwnedCountInSubset()}, Leased: ${getLeasedCountInSubset()}) • Green = Owned, Blue = Leased`
+            }
           </Text>
+          
+          {/* Filter Controls */}
+          <HStack spacing={4} align="center">
+            <Text fontSize="sm" fontWeight="medium" color="gray.700">
+              Show:
+            </Text>
+            <ButtonGroup size="sm" variant="outline" colorScheme="blue">
+              <Menu>
+                <MenuButton 
+                  as={Button}
+                  rightIcon={<Text>▼</Text>}
+                  size="sm"
+                  variant="outline"
+                  colorScheme="blue"
+                >
+                  Show Properties ({getCurrentSubset().length})
+                </MenuButton>
+                <MenuList>
+                  <MenuItem onClick={() => changeDisplayLimit(50)}>
+                    Show 50 properties
+                  </MenuItem>
+                  <MenuItem onClick={() => changeDisplayLimit(500)}>
+                    Show 500 properties
+                  </MenuItem>
+                  <MenuItem onClick={() => changeDisplayLimit(1000)}>
+                    Show 1,000 properties
+                  </MenuItem>
+                  <MenuItem onClick={() => changeDisplayLimit(5000)}>
+                    Show 5,000 properties
+                  </MenuItem>
+                  <MenuItem onClick={() => changeDisplayLimit(50000)}>
+                    Show All properties
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+              <Button
+                isActive={ownedMarkersVisible}
+                onClick={() => toggleMarkerVisibility('owned')}
+                leftIcon={<Box w={2} h={2} bg="green.500" borderRadius="full" />}
+                variant={ownedMarkersVisible ? "solid" : "outline"}
+                colorScheme={ownedMarkersVisible ? "green" : "gray"}
+              >
+                Owned ({getOwnedCountInSubset()})
+              </Button>
+              <Button
+                isActive={leasedMarkersVisible}
+                onClick={() => toggleMarkerVisibility('leased')}
+                leftIcon={<Box w={2} h={2} bg="blue.500" borderRadius="full" />}
+                variant={leasedMarkersVisible ? "solid" : "outline"}
+                colorScheme={leasedMarkersVisible ? "blue" : "gray"}
+              >
+                Leased ({getLeasedCountInSubset()})
+              </Button>
+            </ButtonGroup>
+          </HStack>
         </Box>
 
         {/* Map Container */}
@@ -244,7 +590,32 @@ export default function MapPage() {
           border="1px" 
           borderColor="gray.200"
         >
-          {(mapLoading || dataLoading) && (
+          {/* Data Loading Progress - Green Progress Bar */}
+          {dataLoading && (
+            <Center 
+              position="absolute" 
+              top="0" 
+              left="0" 
+              right="0" 
+              bottom="0" 
+              zIndex={20} 
+              bg="rgba(255,255,255,0.95)"
+            >
+              <Box w="400px" maxW="90%">
+                <LoadingProgress
+                  progress={dataLoadingProgress.percentage}
+                  title="Loading Property Data"
+                  subtitle={`${dataLoadingProgress.message}`}
+                  message={`${dataLoadingProgress.percentage}% complete`}
+                  showSpinner={true}
+                  progressColor="green.500"
+                />
+              </Box>
+            </Center>
+          )}
+
+          {/* Map Loading */}
+          {(mapLoading && !dataLoading) && (
             <Center 
               position="absolute" 
               top="0" 
@@ -256,13 +627,32 @@ export default function MapPage() {
             >
               <VStack spacing={4}>
                 <Spinner size="lg" color="blue.500" />
-                <Text fontWeight="medium">
-                  {mapLoading ? 'Loading Google Maps...' : 'Loading Properties...'}
-                </Text>
-                <Text fontSize="sm" color="gray.600">
-                  {mapLoading ? 'Initializing map interface' : `Fetching property data from Firestore`}
-                </Text>
+                <Text fontWeight="medium">Loading Google Maps...</Text>
+                <Text fontSize="sm" color="gray.600">Initializing map interface</Text>
               </VStack>
+            </Center>
+          )}
+          
+          {/* Marker Loading Progress */}
+          {isLoadingMarkers && (
+            <Center 
+              position="absolute" 
+              top="0" 
+              left="0" 
+              right="0" 
+              bottom="0" 
+              zIndex={15} 
+              bg="rgba(255,255,255,0.95)"
+            >
+              <Box w="400px" maxW="90%">
+                <LoadingProgress
+                  progress={markerProgress.percentage}
+                  title="Loading Map Markers"
+                  subtitle={`Processing ${markerProgress.current} of ${markerProgress.total} properties`}
+                  message={`${markerProgress.percentage}% complete`}
+                  showSpinner={true}
+                />
+              </Box>
             </Center>
           )}
           
@@ -291,4 +681,4 @@ export default function MapPage() {
       </Box>
     </MainLayout>
   );
-} 
+}
