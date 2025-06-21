@@ -97,7 +97,7 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({ buildings, limit })
           orientation: 'top' as const,
           margin: {
             item: 10,
-            axis: 40
+            axis: 0  // Remove axis margin completely
           },
           format: {
             minorLabels: {
@@ -112,7 +112,9 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({ buildings, limit })
           tooltip: {
             followMouse: true,
             overflowMethod: 'cap' as const
-          }
+          },
+          showMinorLabels: true,   // Show minor labels (months)
+          showMajorLabels: true    // Show major labels (years)
         };
 
         // Create new timeline
@@ -191,6 +193,27 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({ buildings, limit })
           white-space: nowrap;
         }
         
+        .vis-panel.vis-background.vis-vertical {
+          background-color: transparent !important;
+          display: none !important;
+        }
+        
+        .vis-panel.vis-background .vis-axis .vis-group:empty {
+          display: none !important;
+        }
+        
+        .vis-panel.vis-background .vis-time-axis.vis-background {
+          background-color: transparent !important;
+        }
+        
+        .vis-grid.vis-vertical {
+          display: none !important;
+        }
+        
+        .vis-loading-screen {
+          display: none !important;
+        }
+        
         .vis-time-axis {
           border-top: 1px solid #e5e7eb;
         }
@@ -210,6 +233,18 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({ buildings, limit })
           width: 2px;
         }
         
+        .vis-panel.vis-bottom {
+          display: none !important;
+        }
+        
+        .vis-shadow.vis-bottom {
+          display: none !important;
+        }
+        
+        .vis-rolling-mode-btn {
+          display: none !important;
+        }
+        
         .vis-tooltip {
           background-color: white;
           border: 1px solid #e5e7eb;
@@ -221,9 +256,10 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({ buildings, limit })
           max-width: 300px;
         }
       `}</style>
+      
       <div ref={timelineRef} style={{ width: '100%', height: '100%' }} />
     </Box>
   );
 };
 
-export default VisTimelineGantt; 
+export default VisTimelineGantt;
