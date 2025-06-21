@@ -63,27 +63,58 @@ export default function MapPage() {
       setDataLoadingProgress({ current: 10, total: 100, percentage: 10, message: 'Connecting to database...' });
       
       // Dynamic import to avoid server-side execution
-      const { getAllPropertiesForMapWithLimit, getAllPropertiesForMap } = await import('@/lib/services/property-service');
+      const { getAllBuildingsForMap, getDataSourceInfo } = await import('@/lib/services/unified-data-service');
       
       // Progress: 20% - Service loaded
-      setDataLoadingProgress({ current: 20, total: 100, percentage: 20, message: 'Fetching property data...' });
+      const dataSourceInfo = getDataSourceInfo();
+      setDataLoadingProgress({ current: 20, total: 100, percentage: 20, message: `Loading from ${dataSourceInfo.description}...` });
       
       let data: TMapMarker[];
       if (effectiveLimit >= 10000) {
-        // For "All" option, use the original function
+        // For "All" option, load all properties
         addDebugInfo('📊 Loading ALL properties (no limit)...');
         setDataLoadingProgress({ current: 30, total: 100, percentage: 30, message: 'Loading all properties...' });
-        data = await getAllPropertiesForMap();
+        const buildings = await getAllBuildingsForMap();
+        data = buildings.map(building => ({
+          id: building.locationCode,
+          name: building.realPropertyAssetName,
+          address: building.streetAddress,
+          city: building.city,
+          state: building.state,
+          lat: building.latitude,
+          lng: building.longitude,
+          type: building.ownedOrLeased === 'F' ? 'owned' : 'leased',
+          zipCode: building.zipCode?.toString() || '',
+          constructionDate: building.constructionDate?.toString() || '',
+          installationName: building.installationName || '',
+          buildingRentableSquareFeet: building.buildingRentableSquareFeet || 0,
+          realPropertyAssetType: building.realPropertyAssetType || ''
+        }));
       } else {
-        // For specific limits, use the optimized function
-        addDebugInfo(`📊 Loading ${effectiveLimit} properties (optimized query)...`);
+        // For specific limits, load limited properties
+        addDebugInfo(`📊 Loading ${effectiveLimit} properties (limited)...`);
         setDataLoadingProgress({ current: 30, total: 100, percentage: 30, message: `Loading ${effectiveLimit} properties...` });
-        data = await getAllPropertiesForMapWithLimit(effectiveLimit);
+        const buildings = await getAllBuildingsForMap(effectiveLimit);
+        data = buildings.map(building => ({
+          id: building.locationCode,
+          name: building.realPropertyAssetName,
+          address: building.streetAddress,
+          city: building.city,
+          state: building.state,
+          lat: building.latitude,
+          lng: building.longitude,
+          type: building.ownedOrLeased === 'F' ? 'owned' : 'leased',
+          zipCode: building.zipCode?.toString() || '',
+          constructionDate: building.constructionDate?.toString() || '',
+          installationName: building.installationName || '',
+          buildingRentableSquareFeet: building.buildingRentableSquareFeet || 0,
+          realPropertyAssetType: building.realPropertyAssetType || ''
+        }));
       }
       
       // Progress: 60% - Data loaded
       setDataLoadingProgress({ current: 60, total: 100, percentage: 60, message: 'Processing property data...' });
-      addDebugInfo(`✅ Loaded ${data.length} properties from database`);
+      addDebugInfo(`✅ Loaded ${data.length} properties from ${dataSourceInfo.description}`);
       
       // Analyze coordinate data quality
       const validCoordinates = data.filter(prop => 
