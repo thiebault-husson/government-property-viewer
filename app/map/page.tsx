@@ -83,12 +83,12 @@ export default function MapPage() {
           state: building.state,
           lat: building.latitude,
           lng: building.longitude,
-          type: building.ownedOrLeased === 'F' ? 'owned' : 'leased',
+          squareFootage: building.buildingRentableSquareFeet || 0,
+          assetType: building.realPropertyAssetType || '',
+          ownedOrLeased: building.ownedOrLeased,
           zipCode: building.zipCode?.toString() || '',
           constructionDate: building.constructionDate?.toString() || '',
-          installationName: building.installationName || '',
-          buildingRentableSquareFeet: building.buildingRentableSquareFeet || 0,
-          realPropertyAssetType: building.realPropertyAssetType || ''
+          installationName: building.installationName || ''
         }));
       } else {
         // For specific limits, load limited properties
@@ -103,12 +103,12 @@ export default function MapPage() {
           state: building.state,
           lat: building.latitude,
           lng: building.longitude,
-          type: building.ownedOrLeased === 'F' ? 'owned' : 'leased',
+          squareFootage: building.buildingRentableSquareFeet || 0,
+          assetType: building.realPropertyAssetType || '',
+          ownedOrLeased: building.ownedOrLeased,
           zipCode: building.zipCode?.toString() || '',
           constructionDate: building.constructionDate?.toString() || '',
-          installationName: building.installationName || '',
-          buildingRentableSquareFeet: building.buildingRentableSquareFeet || 0,
-          realPropertyAssetType: building.realPropertyAssetType || ''
+          installationName: building.installationName || ''
         }));
       }
       
@@ -160,7 +160,7 @@ export default function MapPage() {
       
       // Add markers to map if map is ready - only use valid coordinates
       if (mapInstanceRef.current && validCoordinates.length > 0) {
-        addMarkers(validCoordinates);
+        addMarkers(validCoordinates, effectiveLimit);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load properties';

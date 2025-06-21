@@ -302,14 +302,14 @@ async function importData() {
     
     // Read and parse buildings CSV (contains both owned and leased properties)
     console.log('📖 Reading buildings CSV...');
-    const buildingsCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-buildings.csv');
+    const buildingsCsvPath = join(process.cwd(), 'app', 'db', '2025-6-6-iolp-buildings.csv');
     const buildingsCsvContent = readFileSync(buildingsCsvPath, 'utf-8');
     const buildingsRawData = parseCSV(buildingsCsvContent);
     const buildingsData = buildingsRawData.map(transformBuilding).filter(item => item.locationCode); // Filter out empty records
     
     // Read and parse leased properties CSV (lease-specific details)
     console.log('📖 Reading leased properties CSV...');
-    const leasedCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-leased-properties.csv');
+    const leasedCsvPath = join(process.cwd(), 'app', 'db', '2025-6-6-iolp-leased-properties.csv');
     const leasedCsvContent = readFileSync(leasedCsvPath, 'utf-8');
     const leasedRawData = parseCSV(leasedCsvContent);
     const leasedData = leasedRawData.map(transformLeasedProperty).filter(item => item.locationCode); // Filter out empty records
