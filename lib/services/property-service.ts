@@ -210,18 +210,46 @@ export async function getAllPropertiesForMap(): Promise<TMapMarker[]> {
   }
 }
 
-// Get owned properties for dashboard
-export async function getOwnedPropertiesForDashboard(): Promise<TBuilding[]> {
+// Get owned properties for dashboard with progress tracking
+export async function getOwnedPropertiesForDashboard(
+  onProgress?: (progress: number, message: string) => void
+): Promise<TBuilding[]> {
   try {
+    onProgress?.(0, 'Connecting to database...');
+    
+    onProgress?.(10, 'Querying owned properties...');
     const q = query(
       collection(db, COLLECTIONS.BUILDINGS),
       where('ownedOrLeased', '==', 'F'),
       orderBy('constructionDate', 'asc')
     );
+    
+    onProgress?.(30, 'Fetching owned properties data...');
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as TBuilding));
+    
+    onProgress?.(60, 'Processing owned properties...');
+    const buildings = querySnapshot.docs.map((doc, index) => {
+      // Update progress during processing for large datasets
+      if (index % 500 === 0 && querySnapshot.docs.length > 1000) {
+        const processingProgress = 60 + (index / querySnapshot.docs.length) * 30;
+        onProgress?.(processingProgress, `Processing ${index + 1} of ${querySnapshot.docs.length} owned properties...`);
+      }
+      
+      return { id: doc.id, ...doc.data() } as TBuilding;
+    });
+    
+    onProgress?.(95, 'Finalizing owned properties data...');
+    
+    // Small delay to show final progress
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    onProgress?.(100, 'Owned properties loaded successfully!');
+    
+    console.log(`✅ Loaded ${buildings.length} owned properties for dashboard`);
+    return buildings;
   } catch (error) {
     console.error('Error fetching owned properties for dashboard:', error);
+    onProgress?.(0, 'Error loading owned properties');
     return [];
   }
 }
