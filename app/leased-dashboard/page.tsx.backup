@@ -1,25 +1,28 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Container,
-  Heading,
   Text,
-  VStack,
-  HStack,
-  Grid,
-  GridItem,
-  Card,
-  CardBody,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  Icon,
   Spinner,
   Center,
+  VStack,
+  SimpleGrid,
+  Heading,
   Badge,
+  Card,
+  CardBody,
+  Divider,
+  HStack,
+  Icon,
+  useColorModeValue,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Button,
+  Flex,
   Table,
   Thead,
   Tbody,
@@ -27,17 +30,7 @@ import {
   Th,
   Td,
   TableContainer,
-  Button,
   Select,
-  Flex,
-  Spacer,
-  SimpleGrid,
-  Divider,
-  useColorModeValue,
-  Alert,
-  AlertIcon,
-  AlertTitle,
-  AlertDescription
 } from '@chakra-ui/react';
 import {
   BarChart,
@@ -47,98 +40,32 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
 } from 'recharts';
-import { Timeline } from 'vis-timeline/standalone';
-import { DataSet } from 'vis-data';
-import MainLayout from '../components/layout/main-layout';
-import VisTimelineGantt from '../components/VisTimelineGantt';
-import { useUnifiedDataService } from '../lib/services/unified-data-service';
-import { TBuilding } from '../../types/property';
-import {
-  FiHome,
-  FiDollarSign,
-  FiCalendar,
-  FiTrendingUp,
-  FiMapPin,
-  FiBarChart3,
-  FiClock
-} from 'react-icons/fi';
+import { Gantt, Task, EventOption, StylingOption, ViewMode, DisplayOption } from 'gantt-task-react';
+import 'gantt-task-react/dist/index.css';
+import { FiCalendar, FiTrendingUp, FiMapPin, FiClock } from 'react-icons/fi';
+import MainLayout from '@/app/components/layout/main-layout';
+import LoadingProgress from '@/app/components/ui/loading-progress';
+import { formatDate, formatNumber, formatSquareFootage } from '@/lib/utils/data-helpers';
+import { TBuilding } from '@/types/property';
 
 // Modern color palette following design guidelines
 const CHART_COLORS = {
   primary: '#2563eb',
-  secondary: '#10b981',
+  secondary: '#10b981', 
   accent: '#f59e0b',
   warning: '#ef4444',
   gradient: ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd']
 };
 
-// Utility functions
-const formatNumber = (num: number): string => {
-  return num.toLocaleString();
-};
-
-const formatSquareFootage = (sqft: number): string => {
-  if (sqft >= 1000000) {
-    return `${(sqft / 1000000).toFixed(1)}M sq ft`;
-  } else if (sqft >= 1000) {
-    return `${(sqft / 1000).toFixed(0)}K sq ft`;
-  }
-  return `${sqft.toLocaleString()} sq ft`;
-};
-
-// Loading Progress Component
-const LoadingProgress = ({ 
-  progress, 
-  message, 
-  title, 
-  subtitle 
-}: { 
-  progress: number; 
-  message: string; 
-  title: string; 
-  subtitle: string; 
-}) => (
-  <Container maxW="md" py={20}>
-    <VStack spacing={6}>
-      <VStack spacing={3}>
-        <Heading size="lg" color="gray.900">{title}</Heading>
-        <Text color="gray.600">{subtitle}</Text>
-      </VStack>
-      
-      <Box w="100%" bg="gray.200" borderRadius="full" h="2">
-        <Box 
-          bg="blue.500" 
-          h="2" 
-          borderRadius="full" 
-          w={`${progress}%`} 
-          transition="width 0.3s ease"
-        />
-      </Box>
-      
-      <VStack spacing={2}>
-        <Text fontSize="sm" fontWeight="medium" color="gray.700">
-          {message}
-        </Text>
-        <Text fontSize="xs" color="gray.500">
-          {progress}% complete
-        </Text>
-      </VStack>
-    </VStack>
-  </Container>
-);
-
 // Custom stat card component following modern design principles
-const StatCard = ({
-  label,
-  value,
-  helpText,
-  icon,
+const StatCard = ({ 
+  label, 
+  value, 
+  helpText, 
+  icon, 
   color = 'blue',
-  isLoading = false
+  isLoading = false 
 }: {
   label: string;
   value: string | number;
@@ -149,7 +76,7 @@ const StatCard = ({
 }) => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
-
+  
   return (
     <Card bg={bgColor} border="1px" borderColor={borderColor} shadow="sm" _hover={{ shadow: 'md' }} transition="all 0.2s">
       <CardBody p={6}>
@@ -164,7 +91,7 @@ const StatCard = ({
           </Box>
           {isLoading && <Spinner size="sm" color={`${color}.500`} />}
         </Flex>
-
+        
         <VStack align="stretch" spacing={1}>
           <Text fontSize="sm" fontWeight="medium" color="gray.600">
             {label}
@@ -182,18 +109,18 @@ const StatCard = ({
 };
 
 // Custom chart container with modern styling
-const ChartContainer = ({
-  title,
-  children,
-  isLoading = false
-}: {
-  title: string;
-  children: React.ReactNode;
+const ChartContainer = ({ 
+  title, 
+  children, 
+  isLoading = false 
+}: { 
+  title: string; 
+  children: React.ReactNode; 
   isLoading?: boolean;
 }) => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
-
+  
   return (
     <Card bg={bgColor} border="1px" borderColor={borderColor} shadow="sm">
       <CardBody p={6}>
@@ -204,7 +131,7 @@ const ChartContainer = ({
             </Heading>
             {isLoading && <Spinner size="sm" />}
           </Flex>
-
+          
           {isLoading ? (
             <Center h="400px">
               <VStack spacing={4}>
@@ -230,8 +157,6 @@ export default function LeasedPropertiesDashboard() {
   const [loadingMessage, setLoadingMessage] = useState('Initializing...');
   const [error, setError] = useState<string | null>(null);
   const [ganttLimit, setGanttLimit] = useState(25);
-  const timelineRef = useRef<HTMLDivElement>(null);
-  const timelineInstance = useRef<Timeline | null>(null);
 
   const loadLeasedProperties = useCallback(async () => {
     try {
@@ -242,37 +167,37 @@ export default function LeasedPropertiesDashboard() {
 
       // Dynamic import to use unified data service
       const { getAllBuildingsForMap, getDataSourceInfo } = await import('@/lib/services/unified-data-service');
-
+      
       setLoadingProgress(30);
       setLoadingMessage('Fetching all buildings...');
-
+      
       const dataSourceInfo = getDataSourceInfo();
       console.log(`📊 Loading from ${dataSourceInfo.description}`);
-
+      
       const allBuildings = await getAllBuildingsForMap();
-
+      
       setLoadingProgress(60);
       setLoadingMessage('Filtering leased properties...');
-
+      
       // Filter for leased buildings only
       const leasedBuildings = allBuildings.filter(building => building.ownedOrLeased === 'L');
-
+      
       console.log(`📊 Data Analysis:`);
       console.log(`  Total buildings: ${allBuildings.length}`);
       console.log(`  Leased buildings: ${leasedBuildings.length}`);
       console.log(`  Owned buildings: ${allBuildings.filter(b => b.ownedOrLeased === 'F').length}`);
-
+      
       setLoadingProgress(90);
       setLoadingMessage('Processing dashboard data...');
-
+      
       setLeasedBuildings(leasedBuildings);
-
+      
       setLoadingProgress(100);
       setLoadingMessage('Dashboard loaded successfully!');
-
+      
       // Small delay to show completion
       await new Promise(resolve => setTimeout(resolve, 500));
-
+      
     } catch (error) {
       console.error('❌ Error loading leased properties:', error);
       setError(`Failed to load leased properties: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -286,105 +211,6 @@ export default function LeasedPropertiesDashboard() {
   useEffect(() => {
     loadLeasedProperties();
   }, [loadLeasedProperties]);
-
-  // Prepare timeline data for vis-timeline
-  const timelineData = leasedBuildings
-    .filter(prop => prop.constructionDate && prop.constructionDate > 0)
-    .slice(0, ganttLimit)
-    .map((prop, index) => {
-      // Create realistic lease periods based on construction date
-      const constructionYear = prop.constructionDate;
-
-      // Generate more realistic lease start dates
-      let leaseStartYear;
-      if (constructionYear < 1980) {
-        leaseStartYear = Math.max(1970, constructionYear + Math.floor(Math.random() * 15) + 5);
-      } else if (constructionYear < 2000) {
-        leaseStartYear = Math.max(1990, constructionYear + Math.floor(Math.random() * 10) + 3);
-      } else {
-        leaseStartYear = Math.max(2000, constructionYear + Math.floor(Math.random() * 8) + 2);
-      }
-
-      // Generate lease duration (5-25 years)
-      const leaseDuration = [5, 10, 15, 20, 25][Math.floor(Math.random() * 5)];
-      const leaseEndYear = Math.min(leaseStartYear + leaseDuration, 2024);
-
-      return {
-        id: index,
-        content: prop.realPropertyAssetName.length > 60
-          ? prop.realPropertyAssetName.substring(0, 60) + '...'
-          : prop.realPropertyAssetName,
-        start: new Date(leaseStartYear, 0, 1),
-        end: new Date(leaseEndYear, 11, 31),
-        group: index,
-        title: `${prop.realPropertyAssetName}<br/>
-                City: ${prop.city}, ${prop.state}<br/>
-                Construction: ${constructionYear}<br/>
-                Lease: ${leaseStartYear} - ${leaseEndYear}<br/>
-                Square Footage: ${formatSquareFootage(prop.buildingRentableSquareFeet || 0)}`
-      };
-    });
-
-  // Create groups for the timeline (one group per building)
-  const timelineGroups = timelineData.map((item, index) => ({
-    id: index,
-    content: item.content
-  }));
-
-  // Initialize vis-timeline
-  useEffect(() => {
-    if (!loading && timelineRef.current && timelineData.length > 0) {
-      // Create DataSets
-      const items = new DataSet(timelineData);
-      const groups = new DataSet(timelineGroups);
-
-      // Timeline options
-      const options = {
-        height: '400px',
-        stack: false,
-        showCurrentTime: false,
-        zoomable: true,
-        moveable: true,
-        orientation: 'top',
-        margin: {
-          item: 10,
-          axis: 40
-        },
-        format: {
-          minorLabels: {
-            year: 'YYYY',
-            month: 'MMM'
-          },
-          majorLabels: {
-            year: 'YYYY'
-          }
-        },
-        groupOrder: 'id'
-      };
-
-      // Create timeline
-      if (timelineInstance.current) {
-        timelineInstance.current.destroy();
-      }
-      
-      timelineInstance.current = new Timeline(timelineRef.current, items, groups, options);
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (timelineInstance.current) {
-        timelineInstance.current.destroy();
-      }
-    };
-  }, [loading, timelineData, timelineGroups]);
-
-  // Calculate timeline range
-  const minLeaseYear = timelineData.length > 0 
-    ? Math.min(...timelineData.map(t => t.start.getFullYear()))
-    : new Date().getFullYear();
-  const maxLeaseYear = timelineData.length > 0
-    ? Math.max(...timelineData.map(t => t.end.getFullYear()))
-    : new Date().getFullYear();
 
   // Calculate lease statistics
   const totalProperties = leasedBuildings.length;
@@ -401,7 +227,7 @@ export default function LeasedPropertiesDashboard() {
     .map((prop, index) => {
       // Create realistic lease periods based on construction date
       const constructionYear = prop.constructionDate;
-
+      
       // Generate more realistic lease start dates
       let leaseStartYear;
       if (constructionYear < 1980) {
@@ -411,11 +237,11 @@ export default function LeasedPropertiesDashboard() {
       } else {
         leaseStartYear = Math.max(2000, constructionYear + Math.floor(Math.random() * 8) + 2);
       }
-
+      
       // Generate lease duration (5-25 years)
       const leaseDuration = [5, 10, 15, 20, 25][Math.floor(Math.random() * 5)];
       const leaseEndYear = Math.min(leaseStartYear + leaseDuration, 2024);
-
+      
       return {
         startYear: leaseStartYear,
         endYear: leaseEndYear,
@@ -423,6 +249,36 @@ export default function LeasedPropertiesDashboard() {
         index: index
       };
     });
+
+  // Calculate dynamic timeline range based on actual lease dates (like Construction Era chart)
+  const minLeaseYear = Math.min(...tempGanttTasks.map(t => t.startYear));
+  const maxLeaseYear = Math.max(...tempGanttTasks.map(t => t.endYear));
+  
+  // Create Gantt tasks with dynamic timeline
+  const ganttTasks: Task[] = tempGanttTasks.map(({ startYear, endYear, prop, index }) => {
+    // Create start and end dates for the Gantt chart
+    const startDate = new Date(startYear, 0, 1); // January 1st of start year
+    const endDate = new Date(endYear, 11, 31);   // December 31st of end year
+    
+    return {
+      start: startDate,
+      end: endDate,
+      name: prop.realPropertyAssetName.length > 50 
+        ? prop.realPropertyAssetName.substring(0, 50) + '...' 
+        : prop.realPropertyAssetName,
+      id: `lease-${index}`,
+      type: 'task' as const,
+      progress: 100, // Assume leases are fully executed
+      isDisabled: false,
+      // Custom properties for tooltip
+      city: prop.city,
+      state: prop.state,
+      squareFootage: prop.buildingRentableSquareFeet || 0,
+      constructionYear: prop.constructionDate,
+      fullName: prop.realPropertyAssetName,
+    };
+  })
+  .sort((a, b) => a.start.getTime() - b.start.getTime()); // Sort by lease start date
 
   // Get properties by construction decade for analysis
   const constructionDecades = leasedBuildings
@@ -478,7 +334,7 @@ export default function LeasedPropertiesDashboard() {
     <MainLayout title="Leased Properties Dashboard">
       <Container maxW="7xl" py={8}>
         <VStack spacing={8} align="stretch">
-
+          
           {/* Header Section - Clean typography hierarchy */}
           <Box>
             <VStack spacing={3} align="stretch">
@@ -493,7 +349,7 @@ export default function LeasedPropertiesDashboard() {
                   </Text>
                 </VStack>
               </HStack>
-
+              
               <HStack spacing={3}>
                 <Badge colorScheme="blue" px={3} py={1} borderRadius="full" fontSize="sm">
                   Leased Properties Only
@@ -516,7 +372,7 @@ export default function LeasedPropertiesDashboard() {
               helpText="Government-leased buildings"
               color="blue"
             />
-
+            
             <StatCard
               icon={FiTrendingUp}
               label="Total Leased Space"
@@ -524,7 +380,7 @@ export default function LeasedPropertiesDashboard() {
               helpText="Rentable space under lease"
               color="green"
             />
-
+            
             <StatCard
               icon={FiCalendar}
               label="Average Lease Size"
@@ -532,7 +388,7 @@ export default function LeasedPropertiesDashboard() {
               helpText="Per leased property"
               color="orange"
             />
-
+            
             <StatCard
               icon={FiClock}
               label="Construction Eras"
@@ -562,7 +418,7 @@ export default function LeasedPropertiesDashboard() {
                     <option value={100}>Show 100 properties</option>
                   </Select>
                 </HStack>
-
+                
                 {loading ? (
                   <Center h="500px">
                     <VStack spacing={4}>
@@ -571,10 +427,92 @@ export default function LeasedPropertiesDashboard() {
                     </VStack>
                   </Center>
                 ) : (
-                  <VisTimelineGantt 
-                    buildings={leasedBuildings}
-                    limit={ganttLimit}
-                  />
+                  <Box w="100%" h="500px" overflowY="auto" border="1px" borderColor="gray.200" borderRadius="md" bg="white" className="gantt-wrapper">
+                    <style jsx>{`
+                      .gantt-wrapper {
+                        max-width: 100% !important;
+                      }
+                      .gantt-wrapper :global(.gantt-table-header) {
+                        background-color: #f7fafc !important;
+                        border-bottom: 1px solid #e2e8f0 !important;
+                      }
+                      .gantt-wrapper :global(.gantt-table-header-item) {
+                        font-size: 12px !important;
+                        color: #4a5568 !important;
+                        padding: 8px !important;
+                        text-align: center !important;
+                      }
+                      .gantt-wrapper :global(.gantt-vertical-container) {
+                        overflow: visible !important;
+                      }
+                      .gantt-wrapper :global(.gantt-horizontal-container) {
+                        overflow: hidden !important;
+                        max-width: 100% !important;
+                      }
+                      .gantt-wrapper :global(.gantt-timeline) {
+                        max-width: 100% !important;
+                      }
+                      /* Hide From and To columns in default table */
+                      .gantt-wrapper :global(.gantt-table-header-item:nth-child(2)),
+                      .gantt-wrapper :global(.gantt-table-header-item:nth-child(3)),
+                      .gantt-wrapper :global(.gantt-task-item-cell:nth-child(2)),
+                      .gantt-wrapper :global(.gantt-task-item-cell:nth-child(3)) {
+                        display: none !important;
+                      }
+                      /* Style the remaining task name column */
+                      .gantt-wrapper :global(.gantt-table-header-item:first-child) {
+                        width: 300px !important;
+                        text-align: left !important;
+                        padding-left: 12px !important;
+                      }
+                      .gantt-wrapper :global(.gantt-task-item-cell:first-child) {
+                        width: 300px !important;
+                        padding-left: 12px !important;
+                        font-size: 14px !important;
+                      }
+                      /* Hide non-semester months in timeline */
+                      .gantt-wrapper :global(.gantt-timeline-header .gantt-timeline-header-cell:not([data-month="0"]):not([data-month="6"])) {
+                        display: none !important;
+                      }
+                    `}</style>
+                    <Gantt
+                      tasks={ganttTasks}
+                      viewMode={ViewMode.Month}
+                      listCellWidth="300px"
+                      columnWidth={40} // Reduced width to fit more columns in container
+                      rowHeight={50}
+                      ganttHeight={400}
+                      headerHeight={80}
+                      barCornerRadius={4}
+                      handleWidth={10}
+                      fontFamily="Inter, system-ui, sans-serif"
+                      fontSize="14px"
+                      barBackgroundColor="#2563eb"
+                      barBackgroundSelectedColor="#1e40af"
+                      barProgressColor="#60a5fa"
+                      barProgressSelectedColor="#3b82f6"
+                      rtl={false}
+                      locale="en-US"
+                      onEventClick={(task) => {
+                        console.log('Lease clicked:', task);
+                      }}
+                      onDateChange={(task, children) => {
+                        console.log('Date changed:', task, children);
+                      }}
+                      onProgressChange={(task, progress) => {
+                        console.log('Progress changed:', task, progress);
+                      }}
+                      onDoubleClick={(task) => {
+                        console.log('Double clicked:', task);
+                      }}
+                      onSelect={(task, isSelected) => {
+                        console.log('Selected:', task, isSelected);
+                      }}
+                      onExpanderClick={(task) => {
+                        console.log('Expander clicked:', task);
+                      }}
+                    />
+                  </Box>
                 )}
               </VStack>
             </CardBody>
@@ -587,7 +525,7 @@ export default function LeasedPropertiesDashboard() {
                 <Heading size="md" color="gray.900">
                   Leased Buildings by Construction Era
                 </Heading>
-
+                
                 {loading ? (
                   <Center h="400px">
                     <VStack spacing={4}>
@@ -600,26 +538,26 @@ export default function LeasedPropertiesDashboard() {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={constructionData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis
-                          dataKey="name"
+                        <XAxis 
+                          dataKey="name" 
                           tick={{ fontSize: 12, fill: '#64748b' }}
                           axisLine={{ stroke: '#e2e8f0' }}
                         />
-                        <YAxis
+                        <YAxis 
                           tick={{ fontSize: 12, fill: '#64748b' }}
                           axisLine={{ stroke: '#e2e8f0' }}
                         />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'white',
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'white', 
                             border: '1px solid #e2e8f0',
                             borderRadius: '8px',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                           }}
                           formatter={(value) => [value, 'Buildings']}
                         />
-                        <Bar
-                          dataKey="value"
+                        <Bar 
+                          dataKey="value" 
                           fill={CHART_COLORS.secondary}
                           radius={[4, 4, 0, 0]}
                         />
@@ -638,7 +576,7 @@ export default function LeasedPropertiesDashboard() {
                 <Heading size="md" color="gray.900">
                   Leased Properties Overview
                 </Heading>
-
+                
                 <TableContainer>
                   <Table variant="simple" size="sm">
                     <Thead bg="gray.50">
@@ -663,8 +601,8 @@ export default function LeasedPropertiesDashboard() {
                             </Badge>
                           </Td>
                           <Td>
-                            {property.constructionDate && property.constructionDate > 0
-                              ? property.constructionDate
+                            {property.constructionDate && property.constructionDate > 0 
+                              ? property.constructionDate 
                               : 'N/A'
                             }
                           </Td>
@@ -674,13 +612,13 @@ export default function LeasedPropertiesDashboard() {
                     </Tbody>
                   </Table>
                 </TableContainer>
-
+                
                 {leasedBuildings.length > 50 && (
                   <Text fontSize="sm" color="gray.500" textAlign="center">
                     Showing first 50 properties. Total: {formatNumber(leasedBuildings.length)} leased properties
                   </Text>
                 )}
-
+                
                 {leasedBuildings.length === 0 && (
                   <Center py={8}>
                     <VStack spacing={3}>

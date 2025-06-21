@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Container,
-  Flex,
   Text,
   Spinner,
   Center,
@@ -18,12 +17,12 @@ import {
   HStack,
   Icon,
   useColorModeValue,
-  Progress,
   Alert,
   AlertIcon,
   AlertTitle,
   AlertDescription,
   Button,
+  Flex,
 } from '@chakra-ui/react';
 import {
   BarChart,
@@ -41,8 +40,6 @@ import {
 import { FiHome, FiTrendingUp, FiMapPin, FiCalendar } from 'react-icons/fi';
 import MainLayout from '@/app/components/layout/main-layout';
 import LoadingProgress from '@/app/components/ui/loading-progress';
-import { getOwnedPropertiesForDashboard, getAllBuildings } from '@/lib/services/property-service';
-import { testFirebaseConnection } from '@/lib/test-firebase';
 import {
   groupBuildingsByDecade,
   calculateOwnedPropertyStats,
@@ -153,6 +150,203 @@ const ChartContainer = ({
   );
 };
 
+// Map container for owned properties with hoverable pins
+const OwnedPropertiesMap = ({ 
+  buildings, 
+  isLoading = false 
+}: { 
+  buildings: TBuilding[]; 
+  isLoading?: boolean;
+}) => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  const initializeMap = useCallback(async () => {
+    if (!mapRef.current || mapLoaded) return;
+
+    try {
+      // Check if API key is available
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        throw new Error('Google Maps API key not configured');
+      }
+
+      // Load Google Maps script if not already loaded
+      if (!window.google) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
+          script.async = true;
+          script.defer = true;
+          script.onload = () => resolve(true);
+          script.onerror = () => reject(new Error('Failed to load Google Maps'));
+          document.head.appendChild(script);
+        });
+      }
+
+      // Create map instance
+      const map = new google.maps.Map(mapRef.current, {
+        center: { lat: 39.8283, lng: -98.5795 }, // Center of USA
+        zoom: 4,
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        mapTypeControl: true,
+        zoomControl: true,
+        streetViewControl: false,
+        fullscreenControl: true,
+        styles: [
+          {
+            featureType: "poi",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }]
+          }
+        ]
+      });
+
+      mapInstanceRef.current = map;
+
+      // Create info window
+      infoWindowRef.current = new google.maps.InfoWindow();
+
+      setMapLoaded(true);
+      setMapError(null);
+    } catch (error) {
+      console.error('Error initializing map:', error);
+      setMapError(error instanceof Error ? error.message : 'Failed to initialize map');
+    }
+  }, [mapLoaded]);
+
+  const addMarkersToMap = useCallback(() => {
+    if (!mapInstanceRef.current || !buildings.length) return;
+
+    // Clear existing markers
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
+
+    // Filter buildings with valid coordinates
+    const validBuildings = buildings.filter(building => 
+      building.latitude && 
+      building.longitude && 
+      building.latitude !== 0 && 
+      building.longitude !== 0
+    );
+
+    // Add markers for owned properties only
+    validBuildings.forEach(building => {
+      const marker = new google.maps.Marker({
+        position: { lat: building.latitude, lng: building.longitude },
+        map: mapInstanceRef.current,
+        title: building.realPropertyAssetName,
+        icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png', // Green for owned
+      });
+
+      // Add hover tooltip
+      marker.addListener('mouseover', () => {
+        if (infoWindowRef.current) {
+          const content = `
+            <div style="padding: 8px; max-width: 300px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">
+                ${building.realPropertyAssetName}
+              </h3>
+              <p style="margin: 4px 0; font-size: 12px; color: #666;">
+                <strong>Building Status:</strong> ${building.buildingStatus || 'N/A'}
+              </p>
+              <p style="margin: 4px 0; font-size: 12px; color: #666;">
+                <strong>Building Type:</strong> ${building.realPropertyAssetType || 'N/A'}
+              </p>
+              <p style="margin: 4px 0; font-size: 12px; color: #666;">
+                <strong>Congressional District Rep:</strong> ${building.congressionalDistrictRepresentativeName || 'N/A'}
+              </p>
+              <p style="margin: 4px 0; font-size: 12px; color: #666;">
+                <strong>Location:</strong> ${building.city}, ${building.state}
+              </p>
+            </div>
+          `;
+          infoWindowRef.current.setContent(content);
+          infoWindowRef.current.open(mapInstanceRef.current, marker);
+        }
+      });
+
+      marker.addListener('mouseout', () => {
+        if (infoWindowRef.current) {
+          infoWindowRef.current.close();
+        }
+      });
+
+      markersRef.current.push(marker);
+    });
+  }, [buildings]);
+
+  useEffect(() => {
+    initializeMap();
+  }, [initializeMap]);
+
+  useEffect(() => {
+    if (mapLoaded && buildings.length > 0) {
+      addMarkersToMap();
+    }
+  }, [mapLoaded, buildings, addMarkersToMap]);
+
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+
+  return (
+    <Card bg={bgColor} border="1px" borderColor={borderColor} shadow="sm">
+      <CardBody p={6}>
+        <VStack spacing={6} align="stretch">
+          <Flex justify="space-between" align="center">
+            <Heading size="md" color="gray.900">
+              Owned Properties Map
+            </Heading>
+            {isLoading && <Spinner size="sm" />}
+          </Flex>
+          
+          <Box 
+            h="400px" 
+            borderRadius="lg" 
+            overflow="hidden"
+            position="relative"
+            bg="gray.100"
+          >
+            {mapError ? (
+              <Center h="100%">
+                <VStack spacing={3}>
+                  <Text color="red.500" fontSize="sm">
+                    {mapError}
+                  </Text>
+                  <Button size="sm" onClick={() => {
+                    setMapError(null);
+                    setMapLoaded(false);
+                    initializeMap();
+                  }}>
+                    Retry
+                  </Button>
+                </VStack>
+              </Center>
+            ) : !mapLoaded ? (
+              <Center h="100%">
+                <VStack spacing={3}>
+                  <Spinner color="blue.500" />
+                  <Text fontSize="sm" color="gray.500">Loading map...</Text>
+                </VStack>
+              </Center>
+            ) : null}
+            
+            <Box ref={mapRef} h="100%" w="100%" />
+          </Box>
+          
+          <Text fontSize="xs" color="gray.500" textAlign="center">
+            Hover over green pins to see building details • {buildings.filter(b => b.latitude && b.longitude && b.latitude !== 0 && b.longitude !== 0).length} properties with valid coordinates
+          </Text>
+        </VStack>
+      </CardBody>
+    </Card>
+  );
+};
+
 export default function OwnedPropertiesDashboard() {
   // State for federally-owned buildings (filtered from buildings collection where ownedOrLeased = 'F')
   const [federalOwnedBuildings, setFederalOwnedBuildings] = useState<TBuilding[]>([]);
@@ -166,94 +360,46 @@ export default function OwnedPropertiesDashboard() {
   const constructionDecadeData = groupBuildingsByDecade(federalOwnedBuildings);
   const spaceUtilizationData = calculateSquareFootageData(federalOwnedBuildings, 'owned');
 
-  const handleProgressUpdate = (progress: number, message: string) => {
-    setLoadingProgress(progress);
-    setLoadingMessage(message);
-  };
-
   const loadOwnedProperties = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      setLoadingProgress(0);
-      setLoadingMessage('Initializing...');
-      console.log('🔄 Loading owned properties...');
-      
-      // Test Firebase connection first
       setLoadingProgress(10);
-      setLoadingMessage('Testing database connection...');
-      const testResult = await testFirebaseConnection();
-      if (!testResult.success) {
-        throw new Error(`Firebase connection failed: ${testResult.error}`);
-      }
+      setLoadingMessage('Loading building data...');
+
+      // Dynamic import to use unified data service
+      const { getAllBuildingsForMap, getDataSourceInfo } = await import('@/lib/services/unified-data-service');
       
-      // First, let's analyze ALL buildings to see what ownership values exist
-      setLoadingProgress(20);
-      setLoadingMessage('Analyzing building ownership data...');
-      const allBuildings = await getAllBuildings();
+      setLoadingProgress(30);
+      setLoadingMessage('Fetching all buildings...');
       
-      console.log('📊 Database Analysis:');
-      console.log(`Total buildings: ${allBuildings.length}`);
+      const dataSourceInfo = getDataSourceInfo();
+      console.log(`📊 Loading from ${dataSourceInfo.description}`);
       
-      // Analyze ownership values
-      const ownershipCounts: { [key: string]: number } = {};
-      const sampleBuildings: any[] = [];
+      const allBuildings = await getAllBuildingsForMap();
       
-      allBuildings.forEach((building, index) => {
-        const ownership = building.ownedOrLeased;
-        ownershipCounts[ownership || 'undefined'] = (ownershipCounts[ownership || 'undefined'] || 0) + 1;
-        
-        // Collect first 10 buildings as samples
-        if (index < 10) {
-          sampleBuildings.push({
-            name: building.realPropertyAssetName,
-            ownership: building.ownedOrLeased,
-            city: building.city,
-            state: building.state
-          });
-        }
-      });
+      setLoadingProgress(60);
+      setLoadingMessage('Filtering owned properties...');
       
-      console.log('🏢 Ownership breakdown:');
-      Object.entries(ownershipCounts).forEach(([key, count]) => {
-        console.log(`  "${key}": ${count} buildings`);
-      });
+      // Filter for federally owned buildings only
+      const ownedBuildings = allBuildings.filter(building => building.ownedOrLeased === 'F');
       
-      console.log('📋 Sample buildings (first 10):');
-      sampleBuildings.forEach((building, i) => {
-        console.log(`  ${i + 1}. ${building.name} - Ownership: "${building.ownership}" - ${building.city}, ${building.state}`);
-      });
+      console.log(`📊 Data Analysis:`);
+      console.log(`  Total buildings: ${allBuildings.length}`);
+      console.log(`  Owned buildings: ${ownedBuildings.length}`);
+      console.log(`  Leased buildings: ${allBuildings.filter(b => b.ownedOrLeased === 'L').length}`);
       
-      // Now try to load owned properties with the standard query
-      setLoadingProgress(50);
-      setLoadingMessage('Querying owned properties...');
-      const data = await getOwnedPropertiesForDashboard(handleProgressUpdate);
-      console.log('✅ Owned properties query result:', data.length, 'records');
+      setLoadingProgress(90);
+      setLoadingMessage('Processing dashboard data...');
       
-      setFederalOwnedBuildings(data);
+      setFederalOwnedBuildings(ownedBuildings);
       
-      if (data.length === 0) {
-        // Create detailed error message with analysis
-        const ownedCount = ownershipCounts['F'] || 0;
-        const leasedCount = ownershipCounts['L'] || 0;
-        const unknownCount = ownershipCounts['undefined'] || 0;
-        const otherValues = Object.entries(ownershipCounts)
-          .filter(([key]) => key !== 'F' && key !== 'L' && key !== 'undefined')
-          .map(([key, count]) => `"${key}": ${count}`)
-          .join(', ');
-        
-        let errorMsg = `No owned properties found. Database analysis:\n`;
-        errorMsg += `• Total buildings: ${allBuildings.length}\n`;
-        errorMsg += `• "F" (Federal Owned): ${ownedCount}\n`;
-        errorMsg += `• "L" (Leased): ${leasedCount}\n`;
-        errorMsg += `• Undefined: ${unknownCount}\n`;
-        if (otherValues) {
-          errorMsg += `• Other values: ${otherValues}\n`;
-        }
-        errorMsg += `\nCheck console for detailed sample data.`;
-        
-        setError(errorMsg);
-      }
+      setLoadingProgress(100);
+      setLoadingMessage('Dashboard loaded successfully!');
+      
+      // Small delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
     } catch (error) {
       console.error('❌ Error loading owned properties:', error);
       setError(`Failed to load owned properties: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -266,7 +412,7 @@ export default function OwnedPropertiesDashboard() {
 
   useEffect(() => {
     loadOwnedProperties();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadOwnedProperties]);
 
   if (loading) {
     return (
@@ -275,7 +421,7 @@ export default function OwnedPropertiesDashboard() {
           progress={loadingProgress}
           message={loadingMessage}
           title="Loading Federal Owned Properties"
-          subtitle="Fetching government-owned building data from database..."
+          subtitle="Fetching government-owned building data..."
         />
       </MainLayout>
     );
@@ -291,15 +437,12 @@ export default function OwnedPropertiesDashboard() {
               <Box>
                 <AlertTitle>Error Loading Owned Properties</AlertTitle>
                 <AlertDescription>
-                  <Text mb={2}>No owned properties found in the database.</Text>
-                  <Box as="pre" fontSize="sm" whiteSpace="pre-wrap" bg="gray.50" p={3} borderRadius="md">
-                    {error}
-                  </Box>
+                  <Text mb={2}>{error}</Text>
                 </AlertDescription>
               </Box>
             </Alert>
             <Button onClick={loadOwnedProperties} colorScheme="blue">
-              Retry Analysis
+              Retry Loading
             </Button>
           </VStack>
         </Container>
@@ -411,7 +554,7 @@ export default function OwnedPropertiesDashboard() {
             </ChartContainer>
 
             {/* Space Utilization Chart */}
-            <ChartContainer title="Space Utilization Breakdown" isLoading={loading}>
+            <ChartContainer title="Rentable vs. Available Square Footage" isLoading={loading}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                   <Pie
@@ -448,6 +591,9 @@ export default function OwnedPropertiesDashboard() {
               </ResponsiveContainer>
             </ChartContainer>
           </SimpleGrid>
+
+          {/* Map Section - Full width hoverable map */}
+          <OwnedPropertiesMap buildings={federalOwnedBuildings} isLoading={loading} />
 
           {/* Portfolio Details - Clean information cards */}
           <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={8}>
