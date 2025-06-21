@@ -574,17 +574,6 @@ export default function MapPage() {
             </Box>
           </Alert>
           
-          <Box p={4} bg="gray.50" borderRadius="lg">
-            <Text fontWeight="bold" mb={2}>🔧 Debug Information:</Text>
-            <VStack align="stretch" spacing={1}>
-              {debugInfo.map((info, index) => (
-                <Code key={index} fontSize="xs" p={1}>
-                  {info}
-                </Code>
-              ))}
-            </VStack>
-          </Box>
-          
           <Button onClick={retryInitialization} colorScheme="blue">
             Retry Loading Map
           </Button>
@@ -856,21 +845,6 @@ export default function MapPage() {
             w="100%"
             bg="gray.100"
           />
-        </Box>
-
-        {/* Debug Info */}
-        <Box mt={4} p={4} bg="gray.50" borderRadius="lg">
-          <Text fontSize="sm" fontWeight="bold" mb={2}>🔧 Debug Information:</Text>
-          <VStack align="stretch" spacing={1} maxH="200px" overflowY="auto">
-            {debugInfo.map((info, index) => (
-              <Code key={index} fontSize="xs" p={1}>
-                {info}
-              </Code>
-            ))}
-          </VStack>
-          {debugInfo.length === 0 && (
-            <Text fontSize="sm" color="gray.500">No debug information yet...</Text>
-          )}
         </Box>
       </Box>
     </MainLayout>
