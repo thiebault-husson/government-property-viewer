@@ -8,11 +8,11 @@ export function formatNumber(num: number): string {
 // Format square footage
 export function formatSquareFootage(sqft: number): string {
   if (sqft >= 1000000) {
-    return `${(sqft / 1000000).toFixed(1)}M sq ft`;
+    return `${Math.round(sqft / 100000) / 10}M sq ft`;
   } else if (sqft >= 1000) {
-    return `${(sqft / 1000).toFixed(0)}K sq ft`;
+    return `${Math.round(sqft / 1000)}K sq ft`;
   } else {
-    return `${sqft.toFixed(0)} sq ft`;
+    return `${Math.round(sqft)} sq ft`;
   }
 }
 
@@ -254,23 +254,28 @@ export function calculateSquareFootageData(
   }
   
   const data: TChartData[] = [];
-  let utilized = 0;
+  let totalRentable = 0;
   let available = 0;
   
   filteredBuildings.forEach(building => {
-    const totalSpace = building.buildingRentableSquareFeet || 0;
+    const rentableSpace = building.buildingRentableSquareFeet || 0;
     const availableSpace = building.availableSquareFeet || 0;
-    const utilizedSpace = totalSpace - availableSpace;
     
-    utilized += utilizedSpace > 0 ? utilizedSpace : totalSpace;
+    totalRentable += rentableSpace;
     available += availableSpace;
   });
+  
+  // Use consistent rounding that matches the stat card display
+  // Round to nearest 100K (0.1M) to match formatSquareFootage behavior
+  const roundedTotalRentable = Math.round(totalRentable / 100000) * 100000;
+  const roundedAvailable = Math.round(available / 100000) * 100000;
+  const utilized = roundedTotalRentable - roundedAvailable;
   
   if (utilized > 0) {
     data.push({ name: 'Utilized Space', value: utilized });
   }
-  if (available > 0) {
-    data.push({ name: 'Available Space', value: available });
+  if (roundedAvailable > 0) {
+    data.push({ name: 'Available Space', value: roundedAvailable });
   }
   
   return data;

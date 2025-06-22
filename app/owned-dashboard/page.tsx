@@ -37,7 +37,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { FiHome, FiTrendingUp, FiMapPin, FiCalendar } from 'react-icons/fi';
+import { FiHome, FiTrendingUp, FiMapPin, FiCalendar, FiSquare } from 'react-icons/fi';
 import MainLayout from '@/app/components/layout/main-layout';
 import LoadingProgress from '@/app/components/ui/loading-progress';
 import {
@@ -359,6 +359,13 @@ export default function OwnedPropertiesDashboard() {
   const federalOwnedStats = calculateOwnedPropertyStats(federalOwnedBuildings);
   const constructionDecadeData = groupBuildingsByDecade(federalOwnedBuildings);
   const spaceUtilizationData = calculateSquareFootageData(federalOwnedBuildings, 'owned');
+  
+  // Calculate total available square footage
+  const totalAvailableSquareFootage = federalOwnedBuildings.reduce((sum, building) => {
+    return sum + (building.availableSquareFeet || 0);
+  }, 0);
+  
+
 
   const loadOwnedProperties = useCallback(async () => {
     try {
@@ -393,6 +400,25 @@ export default function OwnedPropertiesDashboard() {
       setLoadingMessage('Processing dashboard data...');
       
       setFederalOwnedBuildings(ownedBuildings);
+      
+      // Debug logging with actual data
+      if (ownedBuildings.length > 0) {
+        console.log('🔍 TEST - Inside debug block with data...');
+        const stats = calculateOwnedPropertyStats(ownedBuildings);
+        const totalAvailable = ownedBuildings.reduce((sum, building) => sum + (building.availableSquareFeet || 0), 0);
+        const chartData = calculateSquareFootageData(ownedBuildings, 'owned');
+        
+        console.log('🔍 DEBUG - Calculation Comparison:');
+        console.log(`  Total Rentable: ${stats.totalSquareFootage.toLocaleString()} (${(stats.totalSquareFootage / 1000000).toFixed(3)}M)`);
+        console.log(`  Total Available: ${totalAvailable.toLocaleString()} (${(totalAvailable / 1000000).toFixed(3)}M)`);
+        console.log(`  Manual Utilized: ${(stats.totalSquareFootage - totalAvailable).toLocaleString()} (${((stats.totalSquareFootage - totalAvailable) / 1000000).toFixed(3)}M)`);
+        console.log(`  Chart Data:`, chartData);
+        console.log(`  Formatted Total: ${formatSquareFootage(stats.totalSquareFootage)}`);
+        console.log(`  Formatted Available: ${formatSquareFootage(totalAvailable)}`);
+        console.log(`  Formatted Utilized: ${formatSquareFootage(stats.totalSquareFootage - totalAvailable)}`);
+      } else {
+        console.log('🔍 TEST - No owned buildings found!');
+      }
       
       setLoadingProgress(100);
       setLoadingMessage('Dashboard loaded successfully!');
@@ -495,10 +521,18 @@ export default function OwnedPropertiesDashboard() {
             
             <StatCard
               icon={FiTrendingUp}
-              label="Total Square Footage"
+              label="Total Rentable Square Footage"
               value={formatSquareFootage(federalOwnedStats.totalSquareFootage)}
               helpText="Federal rentable space"
               color="green"
+            />
+            
+            <StatCard
+              icon={FiSquare}
+              label="Available Square Footage"
+              value={formatSquareFootage(totalAvailableSquareFootage)}
+              helpText="Federal available space"
+              color="purple"
             />
             
             <StatCard
@@ -507,14 +541,6 @@ export default function OwnedPropertiesDashboard() {
               value={formatSquareFootage(federalOwnedStats.averageSquareFootage)}
               helpText="Per federal property"
               color="orange"
-            />
-            
-            <StatCard
-              icon={FiCalendar}
-              label="Portfolio Span"
-              value={constructionDecadeData.length > 0 ? `${constructionDecadeData.length} Decades` : 'Mixed'}
-              helpText="Construction period range"
-              color="purple"
             />
           </SimpleGrid>
 
