@@ -37,7 +37,16 @@ import {
   Alert,
   AlertIcon,
   AlertTitle,
-  AlertDescription
+  AlertDescription,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Progress
 } from '@chakra-ui/react';
 import {
   BarChart,
@@ -132,13 +141,15 @@ const LoadingProgress = ({
 );
 
 // Custom stat card component following modern design principles
-const StatCard = ({
-  label,
-  value,
-  helpText,
-  icon,
+const StatCard = ({ 
+  label, 
+  value, 
+  helpText, 
+  icon, 
   color = 'blue',
-  isLoading = false
+  isLoading = false,
+  onClick,
+  isClickable = false
 }: {
   label: string;
   value: string | number;
@@ -146,12 +157,27 @@ const StatCard = ({
   icon: any;
   color?: string;
   isLoading?: boolean;
+  onClick?: () => void;
+  isClickable?: boolean;
 }) => {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
-
+  
   return (
-    <Card bg={bgColor} border="1px" borderColor={borderColor} shadow="sm" _hover={{ shadow: 'md' }} transition="all 0.2s">
+    <Card 
+      bg={bgColor} 
+      border="1px" 
+      borderColor={borderColor} 
+      shadow="sm" 
+      _hover={{ 
+        shadow: 'md',
+        transform: isClickable ? 'translateY(-2px)' : 'none',
+        borderColor: isClickable ? `${color}.200` : borderColor
+      }} 
+      transition="all 0.2s"
+      cursor={isClickable ? 'pointer' : 'default'}
+      onClick={onClick}
+    >
       <CardBody p={6}>
         <Flex align="center" justify="space-between" mb={3}>
           <Box
@@ -163,8 +189,11 @@ const StatCard = ({
             <Icon as={icon} boxSize={6} />
           </Box>
           {isLoading && <Spinner size="sm" color={`${color}.500`} />}
+          {isClickable && (
+            <Icon as={FiTrendingUp} boxSize={4} color="gray.400" />
+          )}
         </Flex>
-
+        
         <VStack align="stretch" spacing={1}>
           <Text fontSize="sm" fontWeight="medium" color="gray.600">
             {label}
@@ -175,6 +204,11 @@ const StatCard = ({
           <Text fontSize="xs" color="gray.500">
             {helpText}
           </Text>
+          {isClickable && (
+            <Text fontSize="xs" color={`${color}.500`} fontWeight="medium">
+              Click for details →
+            </Text>
+          )}
         </VStack>
       </CardBody>
     </Card>
@@ -232,6 +266,9 @@ export default function LeasedPropertiesDashboard() {
   const [leaseStats, setLeaseStats] = useState<any>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const timelineInstance = useRef<Timeline | null>(null);
+  
+  // Modal state for lease data coverage details
+  const { isOpen: isCoverageModalOpen, onOpen: onCoverageModalOpen, onClose: onCoverageModalClose } = useDisclosure();
 
   const loadLeasedProperties = useCallback(async () => {
     try {
@@ -264,6 +301,14 @@ export default function LeasedPropertiesDashboard() {
 
       setLeasedBuildings(enhancedLeasedBuildings);
       setLeaseStats(leaseStats);
+
+      console.log('📊 Lease Statistics Debug:', {
+        leaseStats,
+        leaseDataCoverage: leaseStats?.leaseDataCoverage,
+        totalWithLeaseData: leaseStats?.totalWithLeaseData,
+        totalBuildings: leaseStats?.totalBuildings,
+        calculatedCoverage: leaseStats?.totalBuildings > 0 ? (leaseStats?.totalWithLeaseData / leaseStats?.totalBuildings * 100) : 0
+      });
 
       setLoadingProgress(100);
       setLoadingMessage('Enhanced dashboard loaded successfully!');
@@ -382,7 +427,7 @@ export default function LeasedPropertiesDashboard() {
               icon={FiHome}
               label="Leased Properties"
               value={formatNumber(totalProperties)}
-              helpText={leaseStats ? `${leaseStats.withLeaseData} with lease data` : "Total leased buildings"}
+              helpText={leaseStats ? `${leaseStats.totalWithLeaseData} with lease data` : "Total leased buildings"}
               color="blue"
             />
 
@@ -398,15 +443,15 @@ export default function LeasedPropertiesDashboard() {
               icon={FiCalendar}
               label="Active Leases"
               value={leaseStats?.activeLeases || 'N/A'}
-              helpText={leaseStats ? `Avg ${leaseStats.averageLeaseDuration} years` : "With lease data"}
+              helpText={leaseStats ? `Avg ${leaseStats.avgLeaseDuration} years` : "With lease data"}
               color="orange"
             />
 
             <StatCard
               icon={FiClock}
               label="Lease Data Coverage"
-              value={leaseStats ? `${leaseStats.coveragePercentage}%` : 'N/A'}
-              helpText={leaseStats ? `${leaseStats.withLeaseData} of ${totalProperties} buildings` : "Data availability"}
+              value={leaseStats ? `${Math.round(leaseStats.leaseDataCoverage || 0)}%` : 'N/A'}
+              helpText={leaseStats ? `${leaseStats.totalWithLeaseData} of ${totalProperties} buildings` : "Data availability"}
               color="purple"
             />
           </SimpleGrid>
