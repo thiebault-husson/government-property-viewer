@@ -98,7 +98,7 @@ export async function getAllPropertiesForMapWithLimit(limitCount: number): Promi
     );
     
     const querySnapshot = await getDocs(q);
-    const buildings = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TBuilding));
+    const buildings = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as TBuilding));
     
     console.log(`📊 Fetched ${buildings.length} buildings from database (limited query)`);
 
@@ -228,15 +228,7 @@ export async function getOwnedPropertiesForDashboard(
     const querySnapshot = await getDocs(q);
     
     onProgress?.(60, 'Processing owned properties...');
-    const buildings = querySnapshot.docs.map((doc, index) => {
-      // Update progress during processing for large datasets
-      if (index % 500 === 0 && querySnapshot.docs.length > 1000) {
-        const processingProgress = 60 + (index / querySnapshot.docs.length) * 30;
-        onProgress?.(processingProgress, `Processing ${index + 1} of ${querySnapshot.docs.length} owned properties...`);
-      }
-      
-      return { id: doc.id, ...doc.data() } as TBuilding;
-    });
+    const buildings = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as TBuilding));
     
     onProgress?.(95, 'Finalizing owned properties data...');
     

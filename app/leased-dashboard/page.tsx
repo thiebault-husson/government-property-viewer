@@ -55,7 +55,6 @@ import { Timeline } from 'vis-timeline/standalone';
 import { DataSet } from 'vis-data';
 import MainLayout from '../components/layout/main-layout';
 import VisTimelineGantt from '../components/VisTimelineGantt';
-import { useUnifiedDataService } from '../lib/services/unified-data-service';
 import { TBuilding } from '../../types/property';
 import {
   FiHome,
@@ -63,7 +62,7 @@ import {
   FiCalendar,
   FiTrendingUp,
   FiMapPin,
-  FiBarChart3,
+  FiBarChart,
   FiClock
 } from 'react-icons/fi';
 

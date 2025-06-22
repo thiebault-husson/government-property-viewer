@@ -231,11 +231,12 @@ export default function AllPropertiesPage() {
 
   if (loading) {
     return (
-      <MainLayout>
+      <MainLayout title="All Properties">
         <LoadingProgress
           progress={loadingProgress}
+          message={loadingMessage}
           title="Loading Properties"
-          subtitle={loadingMessage}
+          subtitle="Fetching government property data..."
           showSpinner={true}
         />
       </MainLayout>
@@ -244,7 +245,7 @@ export default function AllPropertiesPage() {
 
   if (error) {
     return (
-      <MainLayout>
+      <MainLayout title="All Properties">
         <Center h="400px">
           <Alert status="error" maxW="md">
             <AlertIcon />
@@ -261,7 +262,7 @@ export default function AllPropertiesPage() {
   const dataSourceInfo = getDataSourceInfo();
 
   return (
-    <MainLayout>
+    <MainLayout title="All Properties">
       <Box p={6} pr={6}>
         {/* Header */}
         <Flex justify="space-between" align="center" mb={6}>

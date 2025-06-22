@@ -82,7 +82,7 @@ function transformToBuilding(row: any): TBuilding {
     locationCode: cleanString(row['Location_Code'] || row['Location Code']),
     realPropertyAssetName: cleanString(row['Real_Property_Asset_Name'] || row['Real Property Asset Name']),
     installationName: cleanString(row['Installation_Name'] || row['Installation Name']),
-    ownedOrLeased: cleanString(row['Owned_or_Leased'] || row['Owned or Leased']),
+    ownedOrLeased: cleanString(row['Owned_or_Leased'] || row['Owned or Leased']) as 'F' | 'L',
     gsaRegion: cleanNumber(row['GSA_Region'] || row['GSA Region']),
     streetAddress: cleanString(row['Street_Address'] || row['Street Address']),
     city: cleanString(row['City']),

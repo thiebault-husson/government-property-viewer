@@ -621,68 +621,6 @@ export default function OwnedPropertiesDashboard() {
           {/* Map Section - Full width hoverable map */}
           <OwnedPropertiesMap buildings={federalOwnedBuildings} isLoading={loading} />
 
-          {/* Portfolio Details - Clean information cards */}
-          <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={8}>
-            <Card shadow="sm" border="1px" borderColor="gray.100">
-              <CardBody p={6}>
-                <VStack align="stretch" spacing={4}>
-                  <Heading size="md" color="gray.900">
-                    Portfolio Timeline
-                  </Heading>
-                  
-                  <VStack align="stretch" spacing={3}>
-                    <Box p={4} bg="blue.50" borderRadius="lg" border="1px" borderColor="blue.100">
-                      <Text fontSize="sm" color="blue.700" fontWeight="medium" mb={1}>
-                        Oldest Federal Building
-                      </Text>
-                      <Text fontSize="sm" color="blue.900">
-                        {federalOwnedStats.oldestBuilding}
-                      </Text>
-                    </Box>
-                    
-                    <Box p={4} bg="green.50" borderRadius="lg" border="1px" borderColor="green.100">
-                      <Text fontSize="sm" color="green.700" fontWeight="medium" mb={1}>
-                        Newest Federal Building
-                      </Text>
-                      <Text fontSize="sm" color="green.900">
-                        {federalOwnedStats.newestBuilding}
-                      </Text>
-                    </Box>
-                  </VStack>
-                </VStack>
-              </CardBody>
-            </Card>
-
-            <Card shadow="sm" border="1px" borderColor="gray.100">
-              <CardBody p={6}>
-                <VStack align="stretch" spacing={4}>
-                  <Heading size="md" color="gray.900">
-                    Portfolio Efficiency
-                  </Heading>
-                  
-                  <VStack align="stretch" spacing={3}>
-                    <Box p={4} bg="purple.50" borderRadius="lg" border="1px" borderColor="purple.100">
-                      <Text fontSize="sm" color="purple.700" fontWeight="medium" mb={1}>
-                        Management Type
-                      </Text>
-                      <Text fontSize="sm" color="purple.900">
-                        Direct Federal Ownership
-                      </Text>
-                    </Box>
-                    
-                    <Box p={4} bg="orange.50" borderRadius="lg" border="1px" borderColor="orange.100">
-                      <Text fontSize="sm" color="orange.700" fontWeight="medium" mb={1}>
-                        Portfolio Status
-                      </Text>
-                      <Text fontSize="sm" color="orange.900">
-                        Active Federal Investment
-                      </Text>
-                    </Box>
-                  </VStack>
-                </VStack>
-              </CardBody>
-            </Card>
-          </SimpleGrid>
         </VStack>
       </Container>
     </MainLayout>
