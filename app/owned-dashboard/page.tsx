@@ -24,19 +24,9 @@ import {
   Button,
   Flex,
 } from '@chakra-ui/react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from 'recharts';
+import ModernBarChart from '@/app/components/charts/ModernBarChart';
+import ModernPieChart from '@/app/components/charts/ModernPieChart';
+import ResponsiveChart from '@/app/components/charts/ResponsiveChart';
 import { FiHome, FiTrendingUp, FiMapPin, FiCalendar, FiSquare } from 'react-icons/fi';
 import MainLayout from '@/app/components/layout/main-layout';
 import LoadingProgress from '@/app/components/ui/loading-progress';
@@ -549,72 +539,32 @@ export default function OwnedPropertiesDashboard() {
             
             {/* Construction Timeline Chart */}
             <ChartContainer title="Buildings by Construction Decade" isLoading={loading}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={constructionDecadeData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis 
-                    dataKey="name" 
-                    tick={{ fontSize: 12, fill: '#64748b' }}
-                    axisLine={{ stroke: '#e2e8f0' }}
+              <ResponsiveChart>
+                {({ width, height }) => (
+                  <ModernBarChart
+                    data={constructionDecadeData}
+                    width={width}
+                    height={height}
+                    primaryColor={CHART_COLORS.primary}
+                    gradientColor={CHART_COLORS.secondary}
                   />
-                  <YAxis 
-                    tick={{ fontSize: 12, fill: '#64748b' }}
-                    axisLine={{ stroke: '#e2e8f0' }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
-                    formatter={(value) => [value, 'Buildings']}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    fill={CHART_COLORS.primary}
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+                )}
+              </ResponsiveChart>
             </ChartContainer>
 
             {/* Space Utilization Chart */}
             <ChartContainer title="Rentable vs. Available Square Footage" isLoading={loading}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <Pie
+              <ResponsiveChart>
+                {({ width, height }) => (
+                  <ModernPieChart
                     data={spaceUtilizationData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={false}
-                  >
-                    {spaceUtilizationData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={CHART_COLORS.gradient[index % CHART_COLORS.gradient.length]} 
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value) => [formatSquareFootage(Number(value)), 'Square Footage']}
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
+                    width={width}
+                    height={height}
+                    colors={CHART_COLORS.gradient}
+                    showLegend={true}
                   />
-                  <Legend 
-                    wrapperStyle={{ paddingTop: '20px' }}
-                    iconType="circle"
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                )}
+              </ResponsiveChart>
             </ChartContainer>
           </SimpleGrid>
 
