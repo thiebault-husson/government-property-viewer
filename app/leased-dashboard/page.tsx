@@ -55,6 +55,7 @@ import { Timeline } from 'vis-timeline/standalone';
 import { DataSet } from 'vis-data';
 import MainLayout from '../components/layout/main-layout';
 import VisTimelineGantt from '../components/VisTimelineGantt';
+import DebugInfo from '../components/DebugInfo';
 import { TBuilding } from '../../types/property';
 import {
   FiHome,
@@ -228,7 +229,7 @@ export default function LeasedPropertiesDashboard() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Initializing...');
   const [error, setError] = useState<string | null>(null);
-  const [ganttLimit, setGanttLimit] = useState(25);
+  const [leaseStats, setLeaseStats] = useState<any>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const timelineInstance = useRef<Timeline | null>(null);
 
@@ -237,44 +238,42 @@ export default function LeasedPropertiesDashboard() {
       setLoading(true);
       setError(null);
       setLoadingProgress(10);
-      setLoadingMessage('Loading building data...');
-
-      // Dynamic import to use unified data service
-      const { getAllBuildingsForMap, getDataSourceInfo } = await import('@/lib/services/unified-data-service');
+      setLoadingMessage('Loading enhanced lease data...');
 
       setLoadingProgress(30);
-      setLoadingMessage('Fetching all buildings...');
+      setLoadingMessage('Fetching leased buildings with real lease data...');
 
-      const dataSourceInfo = getDataSourceInfo();
-      console.log(`📊 Loading from ${dataSourceInfo.description}`);
+      // Use the enhanced lease data API instead of the regular buildings API
+      const response = await fetch('/api/leases?includeStats=true');
+      if (!response.ok) {
+        throw new Error('Failed to fetch lease data');
+      }
 
-      const allBuildings = await getAllBuildingsForMap();
+      const data = await response.json();
+      const enhancedLeasedBuildings = data.buildings || [];
+      const leaseStats = data.stats || {};
 
-      setLoadingProgress(60);
-      setLoadingMessage('Filtering leased properties...');
-
-      // Filter for leased buildings only
-      const leasedBuildings = allBuildings.filter(building => building.ownedOrLeased === 'L');
-
-      console.log(`📊 Data Analysis:`);
-      console.log(`  Total buildings: ${allBuildings.length}`);
-      console.log(`  Leased buildings: ${leasedBuildings.length}`);
-      console.log(`  Owned buildings: ${allBuildings.filter(b => b.ownedOrLeased === 'F').length}`);
+      console.log(`📊 Enhanced Lease Data Analysis:`);
+      console.log(`  Total leased buildings: ${data.total}`);
+      console.log(`  Buildings with lease data: ${data.withLeaseData}`);
+      console.log(`  Coverage: ${((data.withLeaseData / data.total) * 100).toFixed(1)}%`);
+      console.log(`  Lease Statistics:`, leaseStats);
 
       setLoadingProgress(90);
-      setLoadingMessage('Processing dashboard data...');
+      setLoadingMessage('Processing enhanced dashboard data...');
 
-      setLeasedBuildings(leasedBuildings);
+      setLeasedBuildings(enhancedLeasedBuildings);
+      setLeaseStats(leaseStats);
 
       setLoadingProgress(100);
-      setLoadingMessage('Dashboard loaded successfully!');
+      setLoadingMessage('Enhanced dashboard loaded successfully!');
 
       // Small delay to show completion
       await new Promise(resolve => setTimeout(resolve, 500));
 
     } catch (error) {
-      console.error('❌ Error loading leased properties:', error);
-      setError(`Failed to load leased properties: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Error loading enhanced lease data:', error);
+      setError(`Failed to load lease data: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setLoadingProgress(0);
       setLoadingMessage('Error occurred');
     } finally {
@@ -286,105 +285,6 @@ export default function LeasedPropertiesDashboard() {
     loadLeasedProperties();
   }, [loadLeasedProperties]);
 
-  // Prepare timeline data for vis-timeline
-  const timelineData = leasedBuildings
-    .filter(prop => prop.constructionDate && prop.constructionDate > 0)
-    .slice(0, ganttLimit)
-    .map((prop, index) => {
-      // Create realistic lease periods based on construction date
-      const constructionYear = prop.constructionDate;
-
-      // Generate more realistic lease start dates
-      let leaseStartYear;
-      if (constructionYear < 1980) {
-        leaseStartYear = Math.max(1970, constructionYear + Math.floor(Math.random() * 15) + 5);
-      } else if (constructionYear < 2000) {
-        leaseStartYear = Math.max(1990, constructionYear + Math.floor(Math.random() * 10) + 3);
-      } else {
-        leaseStartYear = Math.max(2000, constructionYear + Math.floor(Math.random() * 8) + 2);
-      }
-
-      // Generate lease duration (5-25 years)
-      const leaseDuration = [5, 10, 15, 20, 25][Math.floor(Math.random() * 5)];
-      const leaseEndYear = Math.min(leaseStartYear + leaseDuration, 2024);
-
-      return {
-        id: index,
-        content: prop.realPropertyAssetName.length > 60
-          ? prop.realPropertyAssetName.substring(0, 60) + '...'
-          : prop.realPropertyAssetName,
-        start: new Date(leaseStartYear, 0, 1),
-        end: new Date(leaseEndYear, 11, 31),
-        group: index,
-        title: `${prop.realPropertyAssetName}<br/>
-                City: ${prop.city}, ${prop.state}<br/>
-                Construction: ${constructionYear}<br/>
-                Lease: ${leaseStartYear} - ${leaseEndYear}<br/>
-                Square Footage: ${formatSquareFootage(prop.buildingRentableSquareFeet || 0)}`
-      };
-    });
-
-  // Create groups for the timeline (one group per building)
-  const timelineGroups = timelineData.map((item, index) => ({
-    id: index,
-    content: item.content
-  }));
-
-  // Initialize vis-timeline
-  useEffect(() => {
-    if (!loading && timelineRef.current && timelineData.length > 0) {
-      // Create DataSets
-      const items = new DataSet(timelineData);
-      const groups = new DataSet(timelineGroups);
-
-      // Timeline options
-      const options = {
-        height: '400px',
-        stack: false,
-        showCurrentTime: false,
-        zoomable: true,
-        moveable: true,
-        orientation: 'top',
-        margin: {
-          item: 10,
-          axis: 40
-        },
-        format: {
-          minorLabels: {
-            year: 'YYYY',
-            month: 'MMM'
-          },
-          majorLabels: {
-            year: 'YYYY'
-          }
-        },
-        groupOrder: 'id'
-      };
-
-      // Create timeline
-      if (timelineInstance.current) {
-        timelineInstance.current.destroy();
-      }
-      
-      timelineInstance.current = new Timeline(timelineRef.current, items, groups, options);
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (timelineInstance.current) {
-        timelineInstance.current.destroy();
-      }
-    };
-  }, [loading, timelineData, timelineGroups]);
-
-  // Calculate timeline range
-  const minLeaseYear = timelineData.length > 0 
-    ? Math.min(...timelineData.map(t => t.start.getFullYear()))
-    : new Date().getFullYear();
-  const maxLeaseYear = timelineData.length > 0
-    ? Math.max(...timelineData.map(t => t.end.getFullYear()))
-    : new Date().getFullYear();
-
   // Calculate lease statistics
   const totalProperties = leasedBuildings.length;
   const totalSquareFootage = leasedBuildings.reduce(
@@ -392,36 +292,6 @@ export default function LeasedPropertiesDashboard() {
     0
   );
   const averageSquareFootage = totalProperties > 0 ? totalSquareFootage / totalProperties : 0;
-
-  // Prepare Gantt chart data with dynamic timeline based on actual lease dates
-  const tempGanttTasks = leasedBuildings
-    .filter(prop => prop.constructionDate && prop.constructionDate > 0)
-    .slice(0, ganttLimit) // Use dynamic limit instead of fixed 10
-    .map((prop, index) => {
-      // Create realistic lease periods based on construction date
-      const constructionYear = prop.constructionDate;
-
-      // Generate more realistic lease start dates
-      let leaseStartYear;
-      if (constructionYear < 1980) {
-        leaseStartYear = Math.max(1970, constructionYear + Math.floor(Math.random() * 15) + 5);
-      } else if (constructionYear < 2000) {
-        leaseStartYear = Math.max(1990, constructionYear + Math.floor(Math.random() * 10) + 3);
-      } else {
-        leaseStartYear = Math.max(2000, constructionYear + Math.floor(Math.random() * 8) + 2);
-      }
-
-      // Generate lease duration (5-25 years)
-      const leaseDuration = [5, 10, 15, 20, 25][Math.floor(Math.random() * 5)];
-      const leaseEndYear = Math.min(leaseStartYear + leaseDuration, 2024);
-
-      return {
-        startYear: leaseStartYear,
-        endYear: leaseEndYear,
-        prop: prop,
-        index: index
-      };
-    });
 
   // Get properties by construction decade for analysis
   const constructionDecades = leasedBuildings
@@ -509,10 +379,10 @@ export default function LeasedPropertiesDashboard() {
           {/* Key Metrics - Modern stat cards with icons */}
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
             <StatCard
-              icon={FiMapPin}
-              label="Total Leased Properties"
+              icon={FiHome}
+              label="Leased Properties"
               value={formatNumber(totalProperties)}
-              helpText="Government-leased buildings"
+              helpText={leaseStats ? `${leaseStats.withLeaseData} with lease data` : "Total leased buildings"}
               color="blue"
             />
 
@@ -526,41 +396,28 @@ export default function LeasedPropertiesDashboard() {
 
             <StatCard
               icon={FiCalendar}
-              label="Average Lease Size"
-              value={formatSquareFootage(averageSquareFootage)}
-              helpText="Per leased property"
+              label="Active Leases"
+              value={leaseStats?.activeLeases || 'N/A'}
+              helpText={leaseStats ? `Avg ${leaseStats.averageLeaseDuration} years` : "With lease data"}
               color="orange"
             />
 
             <StatCard
               icon={FiClock}
-              label="Construction Eras"
-              value={constructionData.length > 0 ? `${constructionData.length} Decades` : 'Mixed'}
-              helpText="Building age diversity"
+              label="Lease Data Coverage"
+              value={leaseStats ? `${leaseStats.coveragePercentage}%` : 'N/A'}
+              helpText={leaseStats ? `${leaseStats.withLeaseData} of ${totalProperties} buildings` : "Data availability"}
               color="purple"
             />
           </SimpleGrid>
 
-          {/* Gantt Chart - Full Width */}
+          {/* Lease Timeline Chart - Full Width */}
           <Card shadow="sm" border="1px" borderColor="gray.100">
             <CardBody p={6}>
               <VStack spacing={6} align="stretch">
-                <HStack justify="space-between" align="center">
-                  <Heading size="md" color="gray.900">
-                    Lease Timeline ({minLeaseYear}-{maxLeaseYear})
-                  </Heading>
-                  <Select
-                    value={ganttLimit}
-                    onChange={(e) => setGanttLimit(Number(e.target.value))}
-                    width="200px"
-                    size="sm"
-                  >
-                    <option value={10}>Show 10 properties</option>
-                    <option value={25}>Show 25 properties</option>
-                    <option value={50}>Show 50 properties</option>
-                    <option value={100}>Show 100 properties</option>
-                  </Select>
-                </HStack>
+                <Heading size="md" color="gray.900">
+                  Lease Timeline
+                </Heading>
 
                 {loading ? (
                   <Center h="500px">
@@ -570,10 +427,22 @@ export default function LeasedPropertiesDashboard() {
                     </VStack>
                   </Center>
                 ) : (
-                  <VisTimelineGantt 
-                    buildings={leasedBuildings}
-                    limit={ganttLimit}
-                  />
+                  <>
+                    {console.log('🏠 Passing buildings to VisTimelineGantt:', {
+                      buildingsCount: leasedBuildings.length,
+                      firstBuilding: leasedBuildings[0] ? {
+                        locationCode: leasedBuildings[0].locationCode,
+                        realPropertyAssetName: leasedBuildings[0].realPropertyAssetName,
+                        hasLeases: (leasedBuildings[0] as any).leases ? (leasedBuildings[0] as any).leases.length : 'no leases property',
+                        hasPrimaryLease: (leasedBuildings[0] as any).primaryLease ? 'yes' : 'no'
+                      } : 'no first building'
+                    })}
+                    <VisTimelineGantt 
+                      buildings={leasedBuildings}
+                      limit={10}
+                      useRealLeaseData={true}
+                    />
+                  </>
                 )}
               </VStack>
             </CardBody>
@@ -646,30 +515,66 @@ export default function LeasedPropertiesDashboard() {
                         <Th fontWeight="semibold" color="gray.700">City</Th>
                         <Th fontWeight="semibold" color="gray.700">State</Th>
                         <Th fontWeight="semibold" color="gray.700">Construction Date</Th>
+                        <Th fontWeight="semibold" color="gray.700">Lease Number</Th>
+                        <Th fontWeight="semibold" color="gray.700">Lease Start</Th>
+                        <Th fontWeight="semibold" color="gray.700">Lease End</Th>
+                        <Th fontWeight="semibold" color="gray.700">Status</Th>
                         <Th fontWeight="semibold" color="gray.700">Square Footage</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {leasedBuildings.slice(0, 50).map((property, index) => (
-                        <Tr key={index} _hover={{ bg: 'blue.50' }} transition="all 0.2s">
-                          <Td fontWeight="medium" maxW="300px">
-                            <Text noOfLines={2}>{property.realPropertyAssetName}</Text>
-                          </Td>
-                          <Td>{property.city}</Td>
-                          <Td>
-                            <Badge colorScheme="blue" variant="subtle" fontSize="xs">
-                              {property.state}
-                            </Badge>
-                          </Td>
-                          <Td>
-                            {property.constructionDate && property.constructionDate > 0
-                              ? property.constructionDate
-                              : 'N/A'
-                            }
-                          </Td>
-                          <Td>{formatSquareFootage(property.buildingRentableSquareFeet || 0)}</Td>
-                        </Tr>
-                      ))}
+                      {leasedBuildings.slice(0, 50).map((property, index) => {
+                        const enhancedProp = property as any; // EnhancedLeasedBuilding
+                        return (
+                          <Tr key={index} _hover={{ bg: 'blue.50' }} transition="all 0.2s">
+                            <Td fontWeight="medium" maxW="300px">
+                              <Text noOfLines={2}>{property.realPropertyAssetName}</Text>
+                            </Td>
+                            <Td>{property.city}</Td>
+                            <Td>
+                              <Badge colorScheme="blue" variant="subtle" fontSize="xs">
+                                {property.state}
+                              </Badge>
+                            </Td>
+                            <Td>
+                              {property.constructionDate && property.constructionDate > 0
+                                ? property.constructionDate
+                                : 'N/A'
+                              }
+                            </Td>
+                            <Td>
+                              {enhancedProp.leaseNumber || 'N/A'}
+                            </Td>
+                            <Td>
+                              {enhancedProp.leaseEffectiveDate 
+                                ? new Date(enhancedProp.leaseEffectiveDate).toLocaleDateString()
+                                : 'N/A'
+                              }
+                            </Td>
+                            <Td>
+                              {enhancedProp.leaseExpirationDate 
+                                ? new Date(enhancedProp.leaseExpirationDate).toLocaleDateString()
+                                : 'N/A'
+                              }
+                            </Td>
+                            <Td>
+                              {enhancedProp.leaseStatus ? (
+                                <Badge 
+                                  colorScheme={
+                                    enhancedProp.leaseStatus === 'active' ? 'green' : 
+                                    enhancedProp.leaseStatus === 'expired' ? 'red' : 'yellow'
+                                  } 
+                                  variant="subtle" 
+                                  fontSize="xs"
+                                >
+                                  {enhancedProp.leaseStatus}
+                                </Badge>
+                              ) : 'N/A'}
+                            </Td>
+                            <Td>{formatSquareFootage(property.buildingRentableSquareFeet || 0)}</Td>
+                          </Tr>
+                        );
+                      })}
                     </Tbody>
                   </Table>
                 </TableContainer>
@@ -704,7 +609,7 @@ export default function LeasedPropertiesDashboard() {
                     Data Note
                   </Text>
                   <Text fontSize="xs" color="blue.700">
-                    Lease terms are estimated based on construction dates. Actual lease start/end dates would require additional lease-specific data sources.
+                    Lease terms are based on actual lease data.
                   </Text>
                 </VStack>
               </HStack>
