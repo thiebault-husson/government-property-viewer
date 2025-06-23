@@ -192,15 +192,17 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
               }
             } else {
               // Use estimated dates only when not using real lease data
-              const estimated = generateEstimatedLeaseDates(prop.constructionDate);
-              leases.push({
-                startDate: estimated.startDate,
-                endDate: estimated.endDate,
-                isEstimated: true,
-                leaseIndex: 0,
-                leaseInfo: `<em>Estimated lease period</em><br/>
-                           Based on construction date: ${prop.constructionDate}`
-              });
+              if (prop.constructionDate) {
+                const estimated = generateEstimatedLeaseDates(prop.constructionDate);
+                leases.push({
+                  startDate: estimated.startDate,
+                  endDate: estimated.endDate,
+                  isEstimated: true,
+                  leaseIndex: 0,
+                  leaseInfo: `<em>Estimated lease period</em><br/>
+                             Based on construction date: ${prop.constructionDate}`
+                });
+              }
             }
 
             // Create timeline items for each lease of this building

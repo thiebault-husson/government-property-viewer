@@ -12,7 +12,7 @@ export interface TBuilding {
   longitude: number;
   buildingRentableSquareFeet: number;
   availableSquareFeet: number;
-  constructionDate: number;
+  constructionDate?: number;
   congressionalDistrict: number;
   congressionalDistrictRepresentativeName: string;
   buildingStatus: string;
