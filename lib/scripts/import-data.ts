@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'fs';
+// Load environment variables from .env.local
+import { config } from 'dotenv';
 import { join } from 'path';
+
+// Load .env.local file
+config({ path: join(process.cwd(), '.env.local') });
+
+import { readFileSync } from 'fs';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, writeBatch, doc } from 'firebase/firestore';
 
@@ -26,8 +32,13 @@ function parseCSV(csvContent: string): any[] {
   
   // Define which fields should be treated as numbers
   const numericFields = new Set([
-    'latitude', 'longitude', 'building_rentable_square_feet', 
-    'available_square_feet', 'zip_code', 'gsa_region', 'construction_date', 'congressional_district'
+    'gsa_region', 'zip_code', 'latitude', 'longitude', 'building_rentable_square_feet', 
+    'available_square_feet',  'construction_date', 'congressional_district'
+  ]);
+  
+  // Define which fields should be treated as dates (yyyy-mm-dd format)
+  const dateFields = new Set([
+    'lease_effective_date', 'lease_expiration_date'
   ]);
   
   return lines.slice(1).map((line, index) => {
@@ -46,6 +57,10 @@ function parseCSV(csvContent: string): any[] {
         // Convert to appropriate type
         if (value === '' || value === 'NA' || value === 'N/A' || value === 'null') {
           obj[cleanHeader] = null;
+        } else if (dateFields.has(cleanHeader.toLowerCase()) && value !== '') {
+          // Parse date from yyyy-mm-dd format
+          const parsedDate = parseDate(value);
+          obj[cleanHeader] = parsedDate;
         } else if (numericFields.has(cleanHeader.toLowerCase()) && !isNaN(Number(value)) && value !== '' && !isNaN(parseFloat(value))) {
           // Only convert to number if field is in our numeric whitelist
           obj[cleanHeader] = Number(value);
@@ -86,6 +101,30 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+// Parse date from yyyy-mm-dd format to JavaScript Date object
+function parseDate(dateString: string): Date | null {
+  if (!dateString || dateString.trim() === '') {
+    return null;
+  }
+  
+  // Validate yyyy-mm-dd format
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateString)) {
+    console.warn(`Invalid date format: ${dateString}. Expected yyyy-mm-dd format.`);
+    return null;
+  }
+  
+  const date = new Date(dateString + 'T00:00:00.000Z'); // Add time to ensure UTC
+  
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    console.warn(`Invalid date: ${dateString}`);
+    return null;
+  }
+  
+  return date;
+}
+
 // Clean field names for Firestore (no dots, slashes, etc.)
 function cleanFieldName(name: string): string {
   return name
@@ -98,62 +137,138 @@ function cleanFieldName(name: string): string {
     .toLowerCase();
 }
 
-// Transform owned properties data to TBuilding objects for the buildings collection
-function transformOwnedProperty(row: any) {
+// Transform buildings data to TBuilding objects for the buildings collection
+// This handles both owned (F) and leased (L) properties from the buildings CSV
+function transformBuilding(row: any) {
+  // Helper function to clean string values
+  const cleanString = (value: any): string => {
+    if (!value) return '';
+    return String(value)
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .replace(/\0/g, '') // Remove null bytes
+      .trim();
+  };
+
+  // Helper function to clean and validate numbers
+  const cleanNumber = (value: any): number => {
+    if (!value || value === '' || value === 'N/A' || value === 'NA') return 0;
+    const num = Number(value);
+    return isNaN(num) || !isFinite(num) ? 0 : num;
+  };
+
   return {
-    locationCode: String(row['Location_Code'] || row['Location Code'] || ''),
-    realPropertyAssetName: String(row['Real_Property_Asset_Name'] || row['Real Property Asset Name'] || ''),
-    installationName: String(row['Installation_Name'] || row['Installation Name'] || ''),
-    ownedOrLeased: String(row['Owned_or_Leased'] || row['Owned or Leased'] || ''),
-    gsaRegion: row['GSA_Region'] || row['GSA Region'] || null,
-    streetAddress: String(row['Street_Address'] || row['Street Address'] || ''),
-    city: String(row['City'] || ''),
-    state: String(row['State'] || ''),
-    zipCode: String(row['Zip_Code'] || row['Zip Code'] || ''),
-    latitude: Number(row['Latitude'] || 0),
-    longitude: Number(row['Longitude'] || 0),
-    buildingRentableSquareFeet: Number(row['Building_Rentable_Square_Feet'] || row['Building Rentable Square Feet'] || 0),
-    availableSquareFeet: Number(row['Available_Square_Feet'] || row['Available Square Feet'] || 0),
-    constructionDate: row['Construction_Date'] || row['Construction Date'] || null,
-    congressionalDistrict: row['Congressional_District'] || row['Congressional District'] || null,
-    congressionalDistrictRepresentativeName: String(row['Congressional_District_Representative_Name'] || row['Congressional District Representative Name'] || ''),
-    buildingStatus: String(row['Building_Status'] || row['Building Status'] || ''),
-    realPropertyAssetType: String(row['Real_Property_Asset_Type'] || row['Real Property Asset Type'] || ''),
+    locationCode: cleanString(row['Location_Code'] || row['Location Code']),
+    realPropertyAssetName: cleanString(row['Real_Property_Asset_Name'] || row['Real Property Asset Name']),
+    installationName: cleanString(row['Installation_Name'] || row['Installation Name']),
+    ownedOrLeased: cleanString(row['Owned_or_Leased'] || row['Owned or Leased']),
+    gsaRegion: cleanNumber(row['GSA_Region'] || row['GSA Region']),
+    streetAddress: cleanString(row['Street_Address'] || row['Street Address']),
+    city: cleanString(row['City']),
+    state: cleanString(row['State']),
+    zipCode: cleanNumber(row['Zip_Code'] || row['Zip Code']),
+    latitude: cleanNumber(row['Latitude']),
+    longitude: cleanNumber(row['Longitude']),
+    buildingRentableSquareFeet: cleanNumber(row['Building_Rentable_Square_Feet'] || row['Building Rentable Square Feet']),
+    availableSquareFeet: cleanNumber(row['Available_Square_Feet'] || row['Available Square Feet']),
+    constructionDate: cleanNumber(row['Construction_Date'] || row['Construction Date']),
+    congressionalDistrict: cleanNumber(row['Congressional_District'] || row['Congressional District']),
+    congressionalDistrictRepresentativeName: cleanString(row['Congressional_District_Representative_Name'] || row['Congressional District Representative Name']),
+    buildingStatus: cleanString(row['Building_Status'] || row['Building Status']),
+    realPropertyAssetType: cleanString(row['Real_Property_Asset_Type'] || row['Real Property Asset Type']),
   };
 }
 
-// Transform leased properties data with better field names
+// Transform leased properties data with additional lease-specific fields
 function transformLeasedProperty(row: any) {
+  // Helper function to clean string values
+  const cleanString = (value: any): string => {
+    if (!value) return '';
+    return String(value)
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .replace(/\0/g, '') // Remove null bytes
+      .trim();
+  };
+
+  // Helper function to clean and validate numbers
+  const cleanNumber = (value: any): number => {
+    if (!value || value === '' || value === 'N/A' || value === 'NA') return 0;
+    const num = Number(value);
+    return isNaN(num) || !isFinite(num) ? 0 : num;
+  };
+
   return {
-    locationCode: String(row['Location_Code'] || row['Location Code'] || ''),
-    realPropertyAssetName: String(row['Real_Property_Asset_Name'] || row['Real Property Asset Name'] || ''),
-    installationName: String(row['Installation_Name'] || row['Installation Name'] || ''),
-    federalLeasedCode: String(row['Federal_Leased_Code'] || row['Federal Leased Code'] || ''),
-    gsaRegion: row['GSA_Region'] || row['GSA Region'] || null,
-    streetAddress: String(row['Street_Address'] || row['Street Address'] || ''),
-    city: String(row['City'] || ''),
-    state: String(row['State'] || ''),
-    zipCode: String(row['Zip_Code'] || row['Zip Code'] || ''),
-    latitude: Number(row['Latitude'] || 0),
-    longitude: Number(row['Longitude'] || 0),
-    buildingRentableSquareFeet: Number(row['Building_Rentable_Square_Feet'] || row['Building Rentable Square Feet'] || 0),
-    availableSquareFeet: Number(row['Available_Square_Feet'] || row['Available Square Feet'] || 0),
-    congressionalDistrict: row['Congressional_District'] || row['Congressional District'] || null,
-    congressionalDistrictRepresentative: String(row['Congressional_District_Representative'] || row['Congressional District Representative'] || ''),
-    leaseNumber: String(row['Lease_Number'] || row['Lease Number'] || ''),
-    leaseEffectiveDate: String(row['Lease_Effective_Date'] || row['Lease Effective Date'] || ''),
-    leaseExpirationDate: String(row['Lease_Expiration_Date'] || row['Lease Expiration Date'] || ''),
-    realPropertyAssetType: String(row['Real_Property_Asset_type'] || row['Real Property Asset Type'] || ''),
+    locationCode: cleanString(row['Location_Code'] || row['Location Code']),
+    realPropertyAssetName: cleanString(row['Real_Property_Asset_Name'] || row['Real Property Asset Name']),
+    installationName: cleanString(row['Installation_Name'] || row['Installation Name']),
+    federalLeasedCode: cleanString(row['Federal_Leased_Code'] || row['Federal Leased Code']),
+    gsaRegion: cleanNumber(row['GSA_Region'] || row['GSA Region']),
+    streetAddress: cleanString(row['Street_Address'] || row['Street Address']),
+    city: cleanString(row['City']),
+    state: cleanString(row['State']),
+    zipCode: cleanNumber(row['Zip_Code'] || row['Zip Code']),
+    latitude: cleanNumber(row['Latitude']),
+    longitude: cleanNumber(row['Longitude']),
+    buildingRentableSquareFeet: cleanNumber(row['Building_Rentable_Square_Feet'] || row['Building Rentable Square Feet']),
+    availableSquareFeet: cleanNumber(row['Available_Square_Feet'] || row['Available Square Feet']),
+    congressionalDistrict: cleanNumber(row['Congressional_District'] || row['Congressional District']),
+    congressionalDistrictRepresentative: cleanString(row['Congressional_District_Representative'] || row['Congressional District Representative']),
+    leaseNumber: cleanString(row['Lease_Number'] || row['Lease Number']),
+    leaseEffectiveDate: row['Lease_Effective_Date'] || row['Lease Effective Date'] || null,
+    leaseExpirationDate: row['Lease_Expiration_Date'] || row['Lease Expiration Date'] || null,
+    realPropertyAssetType: cleanString(row['Real_Property_Asset_type'] || row['Real Property Asset Type']),
   };
 }
 
-// Batch upload function with better error handling
+// Batch upload function with better error handling and validation
 async function uploadInBatches(collectionName: string, data: any[], batchSize = 100) {
   console.log(`Starting upload of ${data.length} documents to ${collectionName}...`);
   
-  for (let i = 0; i < data.length; i += batchSize) {
+  // Validate data before uploading
+  const validData = data.filter((item, index) => {
+    try {
+      // Check for required fields
+      if (!item.locationCode || typeof item.locationCode !== 'string') {
+        console.warn(`Skipping document ${index}: missing or invalid locationCode`);
+        return false;
+      }
+      
+      // Check for invalid field names (Firestore restrictions)
+      for (const key of Object.keys(item)) {
+        if (key.startsWith('__') || key.includes('.') || key.includes('/')) {
+          console.warn(`Skipping document ${index}: invalid field name "${key}"`);
+          return false;
+        }
+      }
+      
+      // Check for invalid values
+      for (const [key, value] of Object.entries(item)) {
+        if (typeof value === 'string') {
+          // Check for null bytes or other problematic characters
+          if (value.includes('\0') || /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(value)) {
+            console.warn(`Skipping document ${index}: invalid characters in field "${key}"`);
+            return false;
+          }
+        } else if (typeof value === 'number') {
+          // Check for NaN or Infinity
+          if (!isFinite(value)) {
+            console.warn(`Skipping document ${index}: invalid number in field "${key}": ${value}`);
+            return false;
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.warn(`Skipping document ${index}: validation error:`, error);
+      return false;
+    }
+  });
+  
+  console.log(`Validated ${validData.length} out of ${data.length} documents`);
+  
+  for (let i = 0; i < validData.length; i += batchSize) {
     const batch = writeBatch(db);
-    const batchData = data.slice(i, i + batchSize);
+    const batchData = validData.slice(i, i + batchSize);
     
     batchData.forEach((item, index) => {
       try {
@@ -167,15 +282,17 @@ async function uploadInBatches(collectionName: string, data: any[], batchSize = 
     
     try {
       await batch.commit();
-      console.log(`✅ Uploaded batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(data.length / batchSize)} to ${collectionName} (${batchData.length} docs)`);
+      console.log(`✅ Uploaded batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(validData.length / batchSize)} to ${collectionName} (${batchData.length} docs)`);
     } catch (error) {
       console.error(`❌ Error uploading batch to ${collectionName}:`, error);
+      // Log the first few items in the problematic batch for debugging
+      console.error('Problematic batch sample:', JSON.stringify(batchData.slice(0, 3), null, 2));
       // Continue with next batch instead of failing completely
       continue;
     }
   }
   
-  console.log(`🎉 Successfully uploaded ${data.length} documents to ${collectionName}`);
+  console.log(`🎉 Successfully uploaded ${validData.length} documents to ${collectionName}`);
 }
 
 // Main import function
@@ -183,31 +300,37 @@ async function importData() {
   try {
     console.log('🚀 Starting data import...\n');
     
-    // Read and parse owned properties CSV
-    console.log('📖 Reading owned properties CSV...');
-    const ownedCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-buildings.csv');
-    const ownedCsvContent = readFileSync(ownedCsvPath, 'utf-8');
-    const ownedRawData = parseCSV(ownedCsvContent);
-    const ownedData = ownedRawData.map(transformOwnedProperty).filter(item => item.locationCode); // Filter out empty records
+    // Read and parse buildings CSV (contains both owned and leased properties)
+    console.log('📖 Reading buildings CSV...');
+    const buildingsCsvPath = join(process.cwd(), 'app', 'db', '2025-6-6-iolp-buildings.csv');
+    const buildingsCsvContent = readFileSync(buildingsCsvPath, 'utf-8');
+    const buildingsRawData = parseCSV(buildingsCsvContent);
+    const buildingsData = buildingsRawData.map(transformBuilding).filter(item => item.locationCode); // Filter out empty records
     
-    // Read and parse leased properties CSV
+    // Read and parse leased properties CSV (lease-specific details)
     console.log('📖 Reading leased properties CSV...');
-    const leasedCsvPath = join(process.cwd(), '.cursor', '2025-6-6-iolp-leased-properties.csv');
+    const leasedCsvPath = join(process.cwd(), 'app', 'db', '2025-6-6-iolp-leased-properties.csv');
     const leasedCsvContent = readFileSync(leasedCsvPath, 'utf-8');
     const leasedRawData = parseCSV(leasedCsvContent);
     const leasedData = leasedRawData.map(transformLeasedProperty).filter(item => item.locationCode); // Filter out empty records
     
-    console.log(`\n📊 Data Summary:`);
-    console.log(`   Owned Properties: ${ownedData.length}`);
-    console.log(`   Leased Properties: ${leasedData.length}`);
-    console.log(`   Total Properties: ${ownedData.length + leasedData.length}\n`);
+    // Count owned vs leased in buildings data
+    const ownedCount = buildingsData.filter(building => building.ownedOrLeased === 'F').length;
+    const leasedCount = buildingsData.filter(building => building.ownedOrLeased === 'L').length;
     
-    // Upload owned properties
-    if (ownedData.length > 0) {
-      await uploadInBatches('buildings', ownedData);
+    console.log(`\n📊 Data Summary:`);
+    console.log(`   Buildings (Total): ${buildingsData.length}`);
+    console.log(`     - Federal Owned: ${ownedCount}`);
+    console.log(`     - Leased: ${leasedCount}`);
+    console.log(`   Lease Details: ${leasedData.length}`);
+    console.log(`   Total Records: ${buildingsData.length + leasedData.length}\n`);
+    
+    // Upload buildings (both owned and leased)
+    if (buildingsData.length > 0) {
+      await uploadInBatches('buildings', buildingsData);
     }
     
-    // Upload leased properties
+    // Upload leased properties with additional lease details
     if (leasedData.length > 0) {
       await uploadInBatches('leasedProperties', leasedData);
     }

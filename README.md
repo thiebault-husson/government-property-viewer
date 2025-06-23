@@ -103,7 +103,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 │   │   └── layout/             # Layout components
 │   ├── all-properties/         # All properties table page
 │   ├── map/                    # Interactive map page
-│   ├── owned-dashboard/        # Owned properties analytics
+│   ├── owned-dashboard/        # Federal owned properties analytics
 │   └── leased-dashboard/       # Leased properties dashboard
 ├── lib/                        # Core utilities and services
 │   ├── firebase/              # Firebase configuration

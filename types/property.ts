@@ -36,13 +36,12 @@ export interface TLeasedProperty {
   congressionalDistrict: number;
   congressionalDistrictRepresentative: string;
   leaseNumber: string;
-  leaseEffectiveDate: string;
-  leaseExpirationDate: string;
+  leaseEffectiveDate: Date;
+  leaseExpirationDate: Date;
   realPropertyAssetType: string;
 }
 
-// Legacy alias for backward compatibility during transition
-export type TOwnedProperty = TBuilding;
+
 
 export interface TPropertyForTable {
   realPropertyAssetName: string;
