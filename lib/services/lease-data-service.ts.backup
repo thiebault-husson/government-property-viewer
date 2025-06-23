@@ -129,6 +129,7 @@ function parseCSV(csvContent: string): any[] {
   headerLine = headerLine.replace(/,\s*$/, ''); // Remove trailing comma
   const headers = headerLine.split(',').map(h => h.trim());
   
+  console.log(`📋 CSV Headers (${headers.length}):`, headers);
   
   // Process data lines starting from dataStartIndex
   const results: any[] = [];
@@ -165,6 +166,7 @@ function parseCSV(csvContent: string): any[] {
     }
   }
   
+  console.log(`📋 Parsed ${results.length} lease records from CSV`);
   return results;
 }
 
@@ -224,6 +226,7 @@ function loadLeaseData(): LeaseData[] {
       .map(transformToLeaseData)
       .filter((lease): lease is LeaseData => lease !== null && Boolean(lease.locationCode));
     
+    console.log(`📋 Loaded ${leaseDataCache.length} lease records from CSV`);
     return leaseDataCache;
   } catch (error) {
     console.error('Error loading lease CSV:', error);
@@ -285,22 +288,44 @@ export function enhanceLeasedBuildingsWithMultipleLeases(
   externalLeaseData?: any[]
 ): EnhancedLeasedBuildingWithMultipleLeases[] {
   // Use external lease data if provided, otherwise load from CSV
-  let leasesByLocation: Map<string, LeaseData[]>;
+  let leaseData: LeaseData[];
   
   if (externalLeaseData && externalLeaseData.length > 0) {
-    // Use external lease data (from Supabase)
-    leasesByLocation = new Map<string, LeaseData[]>();
-    externalLeaseData.forEach(lease => {
-      const locationCode = lease.locationCode;
-      if (!leasesByLocation.has(locationCode)) {
-        leasesByLocation.set(locationCode, []);
-      }
-      leasesByLocation.get(locationCode)!.push(lease);
-    });
+    // Convert external lease data (from Supabase) to LeaseData format
+    leaseData = externalLeaseData.map(lease => ({
+      locationCode: lease.locationCode || '',
+      realPropertyAssetName: lease.realPropertyAssetName || '',
+      installationName: lease.installationName || '',
+      federalLeasedCode: lease.federalLeasedCode || '',
+      gsaRegion: lease.gsaRegion || 0,
+      streetAddress: lease.streetAddress || '',
+      city: lease.city || '',
+      state: lease.state || '',
+      zipCode: lease.zipCode || 0,
+      latitude: lease.latitude || 0,
+      longitude: lease.longitude || 0,
+      buildingRentableSquareFeet: lease.buildingRentableSquareFeet || 0,
+      availableSquareFeet: lease.availableSquareFeet || 0,
+      congressionalDistrict: lease.congressionalDistrict || 0,
+      congressionalDistrictRepresentative: lease.congressionalDistrictRepresentative || '',
+      leaseNumber: lease.leaseNumber || '',
+      leaseEffectiveDate: lease.leaseEffectiveDate || '',
+      leaseExpirationDate: lease.leaseExpirationDate || '',
+      realPropertyAssetType: lease.realPropertyAssetType || '',
+    }));
   } else {
     // Load from CSV as fallback
-    leasesByLocation = getLeasesByLocation();
+    leaseData = loadLeaseData();
   }
+  
+  // Group leases by location code
+  const leasesByLocation = new Map<string, LeaseData[]>();
+  leaseData.forEach(lease => {
+    if (!leasesByLocation.has(lease.locationCode)) {
+      leasesByLocation.set(lease.locationCode, []);
+    }
+    leasesByLocation.get(lease.locationCode)!.push(lease);
+  });
   
   return buildings.map(building => {
     const leases = leasesByLocation.get(building.locationCode) || [];

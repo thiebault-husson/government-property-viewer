@@ -371,7 +371,6 @@ export default function OwnedPropertiesDashboard() {
       setLoadingMessage('Fetching all buildings...');
       
       const dataSourceInfo = getDataSourceInfo();
-      console.log(`📊 Loading from ${dataSourceInfo.description}`);
       
       const allBuildings = await getAllBuildingsForMap();
       
@@ -381,10 +380,6 @@ export default function OwnedPropertiesDashboard() {
       // Filter for federally owned buildings only
       const ownedBuildings = allBuildings.filter(building => building.ownedOrLeased === 'F');
       
-      console.log(`📊 Data Analysis:`);
-      console.log(`  Total buildings: ${allBuildings.length}`);
-      console.log(`  Owned buildings: ${ownedBuildings.length}`);
-      console.log(`  Leased buildings: ${allBuildings.filter(b => b.ownedOrLeased === 'L').length}`);
       
       setLoadingProgress(90);
       setLoadingMessage('Processing dashboard data...');
@@ -393,21 +388,11 @@ export default function OwnedPropertiesDashboard() {
       
       // Debug logging with actual data
       if (ownedBuildings.length > 0) {
-        console.log('🔍 TEST - Inside debug block with data...');
         const stats = calculateOwnedPropertyStats(ownedBuildings);
         const totalAvailable = ownedBuildings.reduce((sum, building) => sum + (building.availableSquareFeet || 0), 0);
         const chartData = calculateSquareFootageData(ownedBuildings, 'owned');
         
-        console.log('🔍 DEBUG - Calculation Comparison:');
-        console.log(`  Total Rentable: ${stats.totalSquareFootage.toLocaleString()} (${(stats.totalSquareFootage / 1000000).toFixed(3)}M)`);
-        console.log(`  Total Available: ${totalAvailable.toLocaleString()} (${(totalAvailable / 1000000).toFixed(3)}M)`);
-        console.log(`  Manual Utilized: ${(stats.totalSquareFootage - totalAvailable).toLocaleString()} (${((stats.totalSquareFootage - totalAvailable) / 1000000).toFixed(3)}M)`);
-        console.log(`  Chart Data:`, chartData);
-        console.log(`  Formatted Total: ${formatSquareFootage(stats.totalSquareFootage)}`);
-        console.log(`  Formatted Available: ${formatSquareFootage(totalAvailable)}`);
-        console.log(`  Formatted Utilized: ${formatSquareFootage(stats.totalSquareFootage - totalAvailable)}`);
       } else {
-        console.log('🔍 TEST - No owned buildings found!');
       }
       
       setLoadingProgress(100);

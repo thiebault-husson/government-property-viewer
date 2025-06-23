@@ -47,7 +47,6 @@ export default function MapPage() {
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
 
   const addDebugInfo = (message: string) => {
-    console.log(message);
     setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
   };
 

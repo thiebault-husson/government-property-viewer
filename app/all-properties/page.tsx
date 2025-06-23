@@ -74,7 +74,6 @@ export default function AllPropertiesPage() {
       setLoadingMessage('Initializing...');
       
       const dataSourceInfo = getDataSourceInfo();
-      console.log(`🔄 Loading properties from ${dataSourceInfo.source}...`);
       
       setLoadingProgress(20);
       setLoadingMessage(`Loading from ${dataSourceInfo.description}...`);
@@ -93,8 +92,6 @@ export default function AllPropertiesPage() {
       setLoadingProgress(90);
       setLoadingMessage('Finalizing...');
       
-      console.log('✅ Properties loaded:', data.length, 'records');
-      console.log('📋 Sample data:', data.slice(0, 2));
       
       setProperties(data);
       setFilteredProperties(data);
