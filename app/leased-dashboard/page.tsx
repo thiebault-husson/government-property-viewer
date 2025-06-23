@@ -342,29 +342,29 @@ export default function LeasedPropertiesDashboard() {
     const constructionDecades: string[] = [];
     const constructionYears: string[] = [];
 
-    // Lease start years
-    const leaseStartYears = Array.from(new Set(
+    // Lease start years (convert to strings)
+    const leaseStartYears: string[] = Array.from(new Set(
       records
         .map(r => {
           if (r.leaseEffectiveDate) {
-            return new Date(r.leaseEffectiveDate).getFullYear();
+            return new Date(r.leaseEffectiveDate).getFullYear().toString();
           }
           return null;
         })
-        .filter(Boolean)
-    )).sort((a, b) => (b as number) - (a as number));
+        .filter((year): year is string => year !== null)
+    )).sort((a, b) => parseInt(b) - parseInt(a));
 
-    // Lease end years
-    const leaseEndYears = Array.from(new Set(
+    // Lease end years (convert to strings)
+    const leaseEndYears: string[] = Array.from(new Set(
       records
         .map(r => {
           if (r.leaseExpirationDate) {
-            return new Date(r.leaseExpirationDate).getFullYear();
+            return new Date(r.leaseExpirationDate).getFullYear().toString();
           }
           return null;
         })
-        .filter(Boolean)
-    )).sort((a, b) => (b as number) - (a as number));
+        .filter((year): year is string => year !== null)
+    )).sort((a, b) => parseInt(b) - parseInt(a));
 
     return {
       cities,
