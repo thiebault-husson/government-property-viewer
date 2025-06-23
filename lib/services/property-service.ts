@@ -11,9 +11,7 @@ const COLLECTIONS = {
 // Generic function to get all documents from a collection
 async function getCollection<T>(collectionName: string): Promise<T[]> {
   try {
-    console.log(`🔄 Fetching collection: ${collectionName}`);
     const querySnapshot = await getDocs(collection(db, collectionName));
-    console.log(`✅ Collection ${collectionName} fetched: ${querySnapshot.docs.length} documents`);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
   } catch (error) {
     console.error(`❌ Error fetching ${collectionName}:`, error);
@@ -89,7 +87,6 @@ export async function getAllPropertiesForTable(
 // Get properties for map display with limit (optimized for initial load)
 export async function getAllPropertiesForMapWithLimit(limitCount: number): Promise<TMapMarker[]> {
   try {
-    console.log(`🗺️ Starting getAllPropertiesForMapWithLimit with limit: ${limitCount}`);
     
     // Use Firebase query with limit for better performance
     const q = query(
@@ -100,7 +97,6 @@ export async function getAllPropertiesForMapWithLimit(limitCount: number): Promi
     const querySnapshot = await getDocs(q);
     const buildings = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as TBuilding));
     
-    console.log(`📊 Fetched ${buildings.length} buildings from database (limited query)`);
 
     // Filter for valid coordinates and apply final limit
     const validBuildings = buildings.filter(prop => 
@@ -108,11 +104,9 @@ export async function getAllPropertiesForMapWithLimit(limitCount: number): Promi
       prop.latitude !== 0 && prop.longitude !== 0
     );
 
-    console.log(`📍 Properties with valid coordinates: ${validBuildings.length}`);
 
     // Apply the final limit to valid properties
     const limitedBuildings = validBuildings.slice(0, limitCount);
-    console.log(`🎯 Final limited properties: ${limitedBuildings.length}`);
 
     const markers: TMapMarker[] = limitedBuildings.map(prop => ({
       id: prop.locationCode,
@@ -125,7 +119,6 @@ export async function getAllPropertiesForMapWithLimit(limitCount: number): Promi
       lng: prop.longitude,
     }));
 
-    console.log(`✅ Created ${markers.length} markers for map display`);
     return markers;
   } catch (error) {
     console.error('Error fetching limited properties for map:', error);
@@ -136,11 +129,9 @@ export async function getAllPropertiesForMapWithLimit(limitCount: number): Promi
 // Get all properties for map display (fallback for "All" option)
 export async function getAllPropertiesForMap(): Promise<TMapMarker[]> {
   try {
-    console.log('🗺️ Starting getAllPropertiesForMap...');
     
     // The buildings collection contains BOTH owned and leased properties
     const buildings = await getAllBuildings();
-    console.log(`📊 Total buildings from database: ${buildings.length}`);
 
     // Analyze coordinate data
     let hasLatLng = 0;
@@ -165,28 +156,15 @@ export async function getAllPropertiesForMap(): Promise<TMapMarker[]> {
       }
     });
 
-    console.log('📍 Coordinate Analysis:');
-    console.log(`  ✅ Has both lat/lng: ${hasLatLng}`);
-    console.log(`  ❌ Missing both: ${missingBoth}`);
-    console.log(`  ❌ Missing latitude: ${missingLat}`);
-    console.log(`  ❌ Missing longitude: ${missingLng}`);
-    console.log(`  ⚠️ Zero coordinates: ${zeroCoords}`);
-    console.log(`  🎯 Valid coordinates: ${validCoords}`);
 
     // Sample some coordinate data
     const sampleWithCoords = buildings.filter(p => p.latitude && p.longitude).slice(0, 5);
     const sampleWithoutCoords = buildings.filter(p => !p.latitude || !p.longitude).slice(0, 5);
     
-    console.log('📋 Sample properties WITH coordinates:');
     sampleWithCoords.forEach((prop, i) => {
-      console.log(`  ${i + 1}. ${prop.realPropertyAssetName} - (${prop.latitude}, ${prop.longitude})`);
-      console.log(`     Address: ${prop.streetAddress}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
     });
 
-    console.log('📋 Sample properties WITHOUT coordinates:');
     sampleWithoutCoords.forEach((prop, i) => {
-      console.log(`  ${i + 1}. ${prop.realPropertyAssetName} - (lat: ${prop.latitude}, lng: ${prop.longitude})`);
-      console.log(`     Address: ${prop.streetAddress}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
     });
 
     const markers: TMapMarker[] = buildings
@@ -202,7 +180,6 @@ export async function getAllPropertiesForMap(): Promise<TMapMarker[]> {
         lng: prop.longitude,
       }));
 
-    console.log(`🎯 Final markers created: ${markers.length}`);
     return markers;
   } catch (error) {
     console.error('Error fetching properties for map:', error);
@@ -237,7 +214,6 @@ export async function getOwnedPropertiesForDashboard(
     
     onProgress?.(100, 'Owned properties loaded successfully!');
     
-    console.log(`✅ Loaded ${buildings.length} owned properties for dashboard`);
     return buildings;
   } catch (error) {
     console.error('Error fetching owned properties for dashboard:', error);

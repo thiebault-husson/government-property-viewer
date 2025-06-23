@@ -129,7 +129,6 @@ function parseCSV(csvContent: string): any[] {
   headerLine = headerLine.replace(/,\s*$/, ''); // Remove trailing comma
   const headers = headerLine.split(',').map(h => h.trim());
   
-  console.log(`📋 CSV Headers (${headers.length}):`, headers);
   
   // Process data lines starting from dataStartIndex
   const results: any[] = [];
@@ -166,7 +165,6 @@ function parseCSV(csvContent: string): any[] {
     }
   }
   
-  console.log(`📋 Parsed ${results.length} lease records from CSV`);
   return results;
 }
 
@@ -226,7 +224,6 @@ function loadLeaseData(): LeaseData[] {
       .map(transformToLeaseData)
       .filter((lease): lease is LeaseData => lease !== null && Boolean(lease.locationCode));
     
-    console.log(`📋 Loaded ${leaseDataCache.length} lease records from CSV`);
     return leaseDataCache;
   } catch (error) {
     console.error('Error loading lease CSV:', error);

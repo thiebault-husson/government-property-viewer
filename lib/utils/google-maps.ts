@@ -29,7 +29,6 @@ export async function loadGoogleMaps(): Promise<typeof google> {
   try {
     googleMapsPromise = loader.load();
     const google = await googleMapsPromise;
-    console.log('✅ Google Maps loaded successfully');
     return google;
   } catch (error) {
     console.error('❌ Failed to load Google Maps:', error);
