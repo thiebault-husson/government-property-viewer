@@ -378,7 +378,8 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
         // Timeline options
         const options = {
           width: '100%',
-          height: `${Math.max(400, validGroups.length * 35 + 100)}px`,
+          height: `${Math.max(400, validGroups.length * 35 + 100)}px`, // Keep calculated height for content
+          maxHeight: 600, // Constrain maximum height
           margin: {
             item: 10,
             axis: 20
@@ -390,6 +391,7 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
           moveable: true,
           selectable: true,
           multiselect: false,
+          verticalScroll: true, // Enable vertical scrolling
           tooltip: {
             followMouse: false,
             overflowMethod: 'cap' as const,
@@ -404,6 +406,98 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
         timelineInstance.current = timeline;
 
         console.log('✅ Timeline created successfully');
+
+        // Add vertical scroll support when hovering over building names
+        const addVerticalScrollSupport = () => {
+          const timelineContainer = timelineRef.current;
+          if (!timelineContainer) return;
+
+          // Find the timeline elements
+          const groupLabels = timelineContainer.querySelector('.vis-labelset');
+          const timelinePanel = timelineContainer.querySelector('.vis-itemset');
+          
+          if (!groupLabels || !timelinePanel) return;
+
+          let scrollBarVisible = false;
+
+          // Add vertical scroll event listener
+          const handleVerticalScroll = (e: WheelEvent) => {
+            const isOverGroupLabels = (e.target as Element)?.closest('.vis-labelset');
+            
+            if (isOverGroupLabels) {
+              e.preventDefault();
+              
+              // Get the timeline's internal scrollable container
+              const visContent = timelineContainer.querySelector('.vis-content');
+              const visPanel = timelineContainer.querySelector('.vis-panel');
+              
+              // Try different possible scroll containers
+              const scrollableContainer = visContent || visPanel || timelineContainer;
+              
+              if (scrollableContainer) {
+                const scrollAmount = e.deltaY * 0.5; // Reduce scroll speed for better control
+                const currentScrollTop = scrollableContainer.scrollTop;
+                const maxScrollTop = scrollableContainer.scrollHeight - scrollableContainer.clientHeight;
+                const newScrollTop = Math.max(0, Math.min(maxScrollTop, currentScrollTop + scrollAmount));
+                
+                // Apply smooth scrolling
+                scrollableContainer.scrollTo({
+                  top: newScrollTop,
+                  behavior: 'smooth'
+                });
+                
+                console.log('📜 Scroll applied:', {
+                  scrollAmount,
+                  currentScrollTop,
+                  newScrollTop,
+                  maxScrollTop,
+                  scrollHeight: scrollableContainer.scrollHeight,
+                  clientHeight: scrollableContainer.clientHeight
+                });
+              }
+            }
+          };
+
+          // Show/hide scrollbar on hover
+          const showScrollBar = () => {
+            if (!scrollBarVisible) {
+              const groupLabelsElement = groupLabels as HTMLElement;
+              groupLabelsElement.style.cursor = 'ns-resize';
+              groupLabelsElement.style.backgroundColor = '#f8fafc';
+              groupLabelsElement.style.borderRight = '3px solid #3182ce';
+              groupLabelsElement.title = 'Scroll vertically through building rows';
+              scrollBarVisible = true;
+            }
+          };
+
+          const hideScrollBar = () => {
+            if (scrollBarVisible) {
+              const groupLabelsElement = groupLabels as HTMLElement;
+              groupLabelsElement.style.cursor = 'default';
+              groupLabelsElement.style.backgroundColor = '';
+              groupLabelsElement.style.borderRight = '';
+              groupLabelsElement.title = '';
+              scrollBarVisible = false;
+            }
+          };
+
+          // Add event listeners
+          timelineContainer.addEventListener('wheel', handleVerticalScroll, { passive: false });
+          
+          const groupLabelsElement = groupLabels as HTMLElement;
+          groupLabelsElement.addEventListener('mouseenter', showScrollBar);
+          groupLabelsElement.addEventListener('mouseleave', hideScrollBar);
+
+          // Store cleanup function
+          (timeline as any)._verticalScrollCleanup = () => {
+            timelineContainer.removeEventListener('wheel', handleVerticalScroll);
+            groupLabelsElement.removeEventListener('mouseenter', showScrollBar);
+            groupLabelsElement.removeEventListener('mouseleave', hideScrollBar);
+          };
+        };
+
+        // Add vertical scroll support after timeline is ready
+        setTimeout(addVerticalScrollSupport, 200);
 
         // Add click event listener
         timeline.on('click', (properties) => {
@@ -485,6 +579,10 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
         // Clean up on error
         if (timelineInstance.current) {
           try {
+            // Clean up vertical scroll listeners
+            if ((timelineInstance.current as any)._verticalScrollCleanup) {
+              (timelineInstance.current as any)._verticalScrollCleanup();
+            }
             timelineInstance.current.destroy();
           } catch (destroyError) {
             console.warn('Error destroying timeline after creation error:', destroyError);
@@ -499,6 +597,10 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
       clearTimeout(timeoutId);
       if (timelineInstance.current) {
         try {
+          // Clean up vertical scroll listeners
+          if ((timelineInstance.current as any)._verticalScrollCleanup) {
+            (timelineInstance.current as any)._verticalScrollCleanup();
+          }
           timelineInstance.current.destroy();
         } catch (error) {
           console.warn('Error destroying timeline in cleanup:', error);
@@ -537,7 +639,7 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
               value={effectiveLimit === buildings.length ? 'all' : effectiveLimit.toString()}
               onChange={(e) => handleLimitChange(e.target.value)}
               size="sm"
-              width="120px"
+              width="150px"
               isDisabled={true}
             >
               <option value="10">10 properties</option>
@@ -582,7 +684,7 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
             value={effectiveLimit === buildings.length ? 'all' : effectiveLimit.toString()}
             onChange={(e) => handleLimitChange(e.target.value)}
             size="sm"
-            width="120px"
+            width="150px"
           >
             <option value="10">10 properties</option>
             <option value="50">50 properties</option>
@@ -631,13 +733,14 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
           <Box 
             ref={timelineRef} 
             width="100%" 
-            minHeight="400px"
+            height="600px"
+            maxHeight="600px"
             border="1px solid"
             borderColor="gray.200"
             borderRadius="md"
             bg="white"
             cursor={useRealLeaseData ? "pointer" : "default"}
-            overflow="auto"
+            overflow="hidden"
             sx={{
               // Custom styles for timeline items
               '.lease-timeline-item-clickable': {
@@ -665,6 +768,39 @@ const VisTimelineGantt: React.FC<VisTimelineGanttProps> = ({
                 pointerEvents: 'none !important',
                 zIndex: '10000 !important',
                 marginBottom: '50px !important'
+              },
+              // Enhanced styles for vertical scrolling on building names
+              '.vis-labelset': {
+                transition: 'all 0.2s ease',
+                borderRight: '1px solid #e2e8f0',
+                '&:hover': {
+                  backgroundColor: '#f8fafc !important',
+                  borderRight: '3px solid #3182ce !important',
+                  cursor: 'ns-resize !important',
+                  boxShadow: 'inset -3px 0 0 #3182ce'
+                }
+              },
+              '.vis-label': {
+                transition: 'background-color 0.15s ease',
+                '&:hover': {
+                  backgroundColor: '#e2e8f0 !important'
+                }
+              },
+              // Add a subtle scrollbar indicator
+              '.vis-content': {
+                '&::-webkit-scrollbar': {
+                  width: '8px'
+                },
+                '&::-webkit-scrollbar-track': {
+                  backgroundColor: '#f1f5f9'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: '#cbd5e1',
+                  borderRadius: '4px',
+                  '&:hover': {
+                    backgroundColor: '#94a3b8'
+                  }
+                }
               }
             }}
           />

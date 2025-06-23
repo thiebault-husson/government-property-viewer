@@ -122,7 +122,7 @@ export default function ModernBarChart({
                 }}
                 onMouseMove={(event) => {
                   const eventSvgCoords = localPoint(event);
-                  const left = barX + barWidth / 2;
+                  const left = (barX || 0) + barWidth / 2;
                   showTooltip({
                     tooltipData: d,
                     tooltipTop: eventSvgCoords?.y,
