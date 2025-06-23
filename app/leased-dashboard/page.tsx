@@ -91,11 +91,17 @@ const CHART_COLORS = {
 const ITEMS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 // Utility functions
-const formatNumber = (num: number): string => {
+const formatNumber = (num: number | null | undefined): string => {
+  if (num === null || num === undefined || isNaN(num)) {
+    return '0';
+  }
   return num.toLocaleString();
 };
 
-const formatSquareFootage = (sqft: number): string => {
+const formatSquareFootage = (sqft: number | null | undefined): string => {
+  if (sqft === null || sqft === undefined || isNaN(sqft) || sqft === 0) {
+    return '0 sq ft';
+  }
   if (sqft >= 1000000) {
     return `${(sqft / 1000000).toFixed(1)}M sq ft`;
   } else if (sqft >= 1000) {
@@ -311,10 +317,6 @@ export default function LeasedPropertiesDashboard() {
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [stateFilter, setStateFilter] = useState<string>('all');
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<string>('all');
-  const [constructionDateFilter, setConstructionDateFilter] = useState<string>('all');
-  const [constructionYearFilter, setConstructionYearFilter] = useState<string>('all');
-  const [leaseStartDateFilter, setLeaseStartDateFilter] = useState<string>('all');
-  const [leaseEndDateFilter, setLeaseEndDateFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [sortField, setSortField] = useState<keyof TBuilding>('realPropertyAssetName');
@@ -323,11 +325,7 @@ export default function LeasedPropertiesDashboard() {
     cities: string[];
     states: string[];
     leaseStatuses: string[];
-    constructionDecades: string[];
-    constructionYears: string[];
-    leaseStartYears: string[];
-    leaseEndYears: string[];
-  }>({ cities: [], states: [], leaseStatuses: [], constructionDecades: [], constructionYears: [], leaseStartYears: [], leaseEndYears: [] });
+  }>({ cities: [], states: [], leaseStatuses: [] });
   
   // Modal state for lease data coverage details
   const { isOpen: isCoverageModalOpen, onOpen: onCoverageModalOpen, onClose: onCoverageModalClose } = useDisclosure();
@@ -336,44 +334,45 @@ export default function LeasedPropertiesDashboard() {
   const extractUniqueFilterValues = (records: any[]) => {
     const cities = Array.from(new Set(records.map(r => r.city).filter(Boolean))).sort();
     const states = Array.from(new Set(records.map(r => r.state).filter(Boolean))).sort();
-    const leaseStatuses = Array.from(new Set(records.map(r => r.leaseStatus).filter(Boolean))).sort();
     
-    // For lease records, we don't have construction dates, so we'll return empty arrays
-    const constructionDecades: string[] = [];
-    const constructionYears: string[] = [];
-
-    // Lease start years (convert to strings)
-    const leaseStartYears: string[] = Array.from(new Set(
-      records
-        .map(r => {
-          if (r.leaseEffectiveDate) {
-            return new Date(r.leaseEffectiveDate).getFullYear().toString();
-          }
-          return null;
-        })
-        .filter((year): year is string => year !== null)
-    )).sort((a, b) => parseInt(b) - parseInt(a));
-
-    // Lease end years (convert to strings)
-    const leaseEndYears: string[] = Array.from(new Set(
-      records
-        .map(r => {
-          if (r.leaseExpirationDate) {
-            return new Date(r.leaseExpirationDate).getFullYear().toString();
-          }
-          return null;
-        })
-        .filter((year): year is string => year !== null)
-    )).sort((a, b) => parseInt(b) - parseInt(a));
+    // Calculate lease status manually for all records to ensure we get all status types
+    const recordsWithStatus = records.map(r => {
+      if (r.leaseStatus) {
+        return r;
+      }
+      
+      // Manually calculate lease status if missing
+      const now = new Date();
+      if (r.leaseEffectiveDate && r.leaseExpirationDate) {
+        const startDate = new Date(r.leaseEffectiveDate);
+        const endDate = new Date(r.leaseExpirationDate);
+        
+        let calculatedStatus: 'active' | 'expired' | 'upcoming';
+        if (now < startDate) {
+          calculatedStatus = 'upcoming';
+        } else if (now > endDate) {
+          calculatedStatus = 'expired';
+        } else {
+          calculatedStatus = 'active';
+        }
+        
+        return { ...r, leaseStatus: calculatedStatus };
+      }
+      
+      return { ...r, leaseStatus: 'active' }; // Default fallback
+    });
+    
+    // Extract actual status values from the data
+    const actualStatuses = Array.from(new Set(recordsWithStatus.map(r => r.leaseStatus).filter(Boolean))).sort();
+    
+    // Ensure we always have all three expected status options available
+    const expectedStatuses = ['active', 'expired', 'upcoming'];
+    const leaseStatuses = expectedStatuses; // Always show all three options
 
     return {
       cities,
       states,
       leaseStatuses,
-      constructionDecades,
-      constructionYears,
-      leaseStartYears,
-      leaseEndYears
     };
   };
 
@@ -392,18 +391,6 @@ export default function LeasedPropertiesDashboard() {
 
   const applyFilters = useCallback(() => {
     let filtered = [...(leaseRecords.length > 0 ? leaseRecords : leasedBuildings)];
-    
-    console.log('🔍 applyFilters debug:', {
-      leaseRecordsLength: leaseRecords.length,
-      leasedBuildingsLength: leasedBuildings.length,
-      usingLeaseRecords: leaseRecords.length > 0,
-      filteredLength: filtered.length,
-      firstRecord: filtered[0] ? {
-        locationCode: filtered[0].locationCode,
-        leaseNumber: (filtered[0] as any).leaseNumber,
-        hasConstructionDate: !!(filtered[0] as any).constructionDate
-      } : null
-    });
 
     // Apply search filter
     filtered = filterPropertiesBySearch(filtered, searchTerm);
@@ -416,50 +403,26 @@ export default function LeasedPropertiesDashboard() {
       filtered = filtered.filter(p => p.state === stateFilter);
     }
     if (leaseStatusFilter !== 'all') {
-      filtered = filtered.filter(p => (p as any).leaseStatus === leaseStatusFilter);
-    }
-    
-    // Construction date filters only work with building data, not lease records
-    if (leaseRecords.length === 0) {
-      if (constructionDateFilter !== 'all' && constructionDateFilter !== 'unknown') {
-        const decade = parseInt(constructionDateFilter);
-        filtered = filtered.filter(p => 
-          p.constructionDate && p.constructionDate >= decade && p.constructionDate < decade + 10
-        );
-      } else if (constructionDateFilter === 'unknown') {
-        filtered = filtered.filter(p => !p.constructionDate || p.constructionDate <= 0);
-      }
-
-      // New construction year filter
-      if (constructionYearFilter !== 'all' && constructionYearFilter !== 'unknown') {
-        const year = parseInt(constructionYearFilter);
-        filtered = filtered.filter(p => p.constructionDate === year);
-      } else if (constructionYearFilter === 'unknown') {
-        filtered = filtered.filter(p => !p.constructionDate || p.constructionDate <= 0);
-      }
-    }
-
-    // New lease start date filter
-    if (leaseStartDateFilter !== 'all') {
-      const year = parseInt(leaseStartDateFilter);
       filtered = filtered.filter(p => {
-        const enhanced = p as any;
-        if (enhanced.leaseEffectiveDate) {
-          return new Date(enhanced.leaseEffectiveDate).getFullYear() === year;
+        const record = p as any;
+        let recordStatus = record.leaseStatus;
+        
+        // Calculate lease status if missing
+        if (!recordStatus && record.leaseEffectiveDate && record.leaseExpirationDate) {
+          const now = new Date();
+          const startDate = new Date(record.leaseEffectiveDate);
+          const endDate = new Date(record.leaseExpirationDate);
+          
+          if (now < startDate) {
+            recordStatus = 'upcoming';
+          } else if (now > endDate) {
+            recordStatus = 'expired';
+          } else {
+            recordStatus = 'active';
+          }
         }
-        return false;
-      });
-    }
-
-    // New lease end date filter
-    if (leaseEndDateFilter !== 'all') {
-      const year = parseInt(leaseEndDateFilter);
-      filtered = filtered.filter(p => {
-        const enhanced = p as any;
-        if (enhanced.leaseExpirationDate) {
-          return new Date(enhanced.leaseExpirationDate).getFullYear() === year;
-        }
-        return false;
+        
+        return recordStatus === leaseStatusFilter;
       });
     }
 
@@ -478,7 +441,7 @@ export default function LeasedPropertiesDashboard() {
 
     setFilteredProperties(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [leasedBuildings, leaseRecords, searchTerm, cityFilter, stateFilter, leaseStatusFilter, constructionDateFilter, constructionYearFilter, leaseStartDateFilter, leaseEndDateFilter, sortField, sortDirection]);
+  }, [leasedBuildings, leaseRecords, searchTerm, cityFilter, stateFilter, leaseStatusFilter, sortField, sortDirection]);
 
   // Apply filters whenever dependencies change
   useEffect(() => {
@@ -551,12 +514,6 @@ export default function LeasedPropertiesDashboard() {
         throw new Error('Failed to fetch lease records');
       }
       const rawData = await rawResponse.json();
-
-      console.log(`📊 Enhanced Lease Data Analysis:`);
-      console.log(`  Total enhanced buildings: ${enhancedData.total}`);
-      console.log(`  Total lease records: ${rawData.total}`);
-      console.log(`  Buildings with lease data: ${enhancedData.withLeaseData}`);
-      console.log(`  Lease Statistics:`, enhancedData.stats);
 
       setLoadingProgress(80);
       setLoadingMessage('Processing dashboard data...');
@@ -687,7 +644,7 @@ export default function LeasedPropertiesDashboard() {
                   Leased Properties Only
                 </Badge>
                 <Badge colorScheme="orange" px={3} py={1} borderRadius="full" fontSize="sm">
-                  {formatNumber(leaseStats.totalBuildings)} Properties
+                  {formatNumber(totalProperties)} Lease Records
                 </Badge>
               </HStack>
             </VStack>
@@ -741,15 +698,6 @@ export default function LeasedPropertiesDashboard() {
                   </Center>
                 ) : (
                   <>
-                    {console.log('🏠 Passing buildings to VisTimelineGantt:', {
-                      buildingsCount: leasedBuildings.length,
-                      firstBuilding: leasedBuildings[0] ? {
-                        locationCode: leasedBuildings[0].locationCode,
-                        realPropertyAssetName: leasedBuildings[0].realPropertyAssetName,
-                        hasLeases: (leasedBuildings[0] as any).leases ? (leasedBuildings[0] as any).leases.length : 'no leases property',
-                        hasPrimaryLease: (leasedBuildings[0] as any).primaryLease ? 'yes' : 'no'
-                      } : 'no first building'
-                    })}
                     <VisTimelineGantt 
                       buildings={leasedBuildings}
                       limit={10}
@@ -847,91 +795,22 @@ export default function LeasedPropertiesDashboard() {
                       {uniqueFilterValues.leaseStatuses.map(status => (
                         <option key={status} value={status}>{status}</option>
                       ))}
-                    </Select>
-                  </Flex>
 
-                  {/* Second row of filters */}
-                  <Flex gap={4} flexWrap="nowrap" align="center" w="100%">
-                    <Select
-                      value={constructionDateFilter}
-                      onChange={(e) => setConstructionDateFilter(e.target.value)}
-                      flex="1"
-                      size="sm"
-                      fontSize="sm"
-                      bg="white"
-                      borderColor="gray.300"
-                    >
-                      <option value="all">All Decades</option>
-                      <option value="unknown">Unknown</option>
-                      {uniqueFilterValues.constructionDecades.map(decade => (
-                        <option key={decade} value={decade}>{decade}s</option>
-                      ))}
+                      {/* Clear Filters Button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorScheme="gray"
+                        onClick={() => {
+                          setSearchTerm('');
+                          setCityFilter('all');
+                          setStateFilter('all');
+                          setLeaseStatusFilter('all');
+                        }}
+                      >
+                        Clear All
+                      </Button>
                     </Select>
-
-                    <Select
-                      value={constructionYearFilter}
-                      onChange={(e) => setConstructionYearFilter(e.target.value)}
-                      flex="1"
-                      size="sm"
-                      fontSize="sm"
-                      bg="white"
-                      borderColor="gray.300"
-                    >
-                      <option value="all">All Construction Years</option>
-                      <option value="unknown">Unknown</option>
-                      {uniqueFilterValues.constructionYears.map(year => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
-                    </Select>
-
-                    <Select
-                      value={leaseStartDateFilter}
-                      onChange={(e) => setLeaseStartDateFilter(e.target.value)}
-                      flex="1"
-                      size="sm"
-                      fontSize="sm"
-                      bg="white"
-                      borderColor="gray.300"
-                    >
-                      <option value="all">All Lease Start Years</option>
-                      {uniqueFilterValues.leaseStartYears.map(year => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
-                    </Select>
-
-                    <Select
-                      value={leaseEndDateFilter}
-                      onChange={(e) => setLeaseEndDateFilter(e.target.value)}
-                      flex="1"
-                      size="sm"
-                      fontSize="sm"
-                      bg="white"
-                      borderColor="gray.300"
-                    >
-                      <option value="all">All Lease End Years</option>
-                      {uniqueFilterValues.leaseEndYears.map(year => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
-                    </Select>
-
-                    {/* Clear Filters Button */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      colorScheme="gray"
-                      onClick={() => {
-                        setSearchTerm('');
-                        setCityFilter('all');
-                        setStateFilter('all');
-                        setLeaseStatusFilter('all');
-                        setConstructionDateFilter('all');
-                        setConstructionYearFilter('all');
-                        setLeaseStartDateFilter('all');
-                        setLeaseEndDateFilter('all');
-                      }}
-                    >
-                      Clear All
-                    </Button>
                   </Flex>
                 </VStack>
 
